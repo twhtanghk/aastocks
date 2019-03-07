@@ -33,6 +33,7 @@ class AAStock
       pe: await @pe()
       pb:await @pb()
       dividend: await @dividend()
+      date: await @date()
     await @page.close()
     return ret
 
@@ -77,4 +78,6 @@ class AAStock
     ].map (selector) =>
       await @text await @page.$(selector)
     
+  date: ->
+    await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 module.exports = {browser, AAStock}
