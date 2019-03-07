@@ -1,7 +1,8 @@
-{browser, AAStock} = require '../index'
+{browser, AAStock, AAStockCron} = require '../index'
+{Writable} = require 'stream'
 
 do ->
-  browser = await browser()
-  aastock = new AAStock browser: browser
-  console.log await aastock.quote 1556
-  await browser.close()
+  (await new AAStockCron())
+    .pipe new Writable objectMode: true, write: (data, encoding, cb) ->
+      console.log data
+      cb()

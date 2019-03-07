@@ -28,6 +28,7 @@ class AAStock
     @page.setDefaultNavigationTimeout 60000
     await @page.waitForNavigation()
     ret =
+      symbol: symbol
       currPrice: await @currPrice()
       change: await @change()
       pe: await @pe()
@@ -80,4 +81,25 @@ class AAStock
     
   date: ->
     await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
-module.exports = {browser, AAStock}
+
+{Readable} = require 'stream'
+
+class AAStockCron extends Readable
+  constructor: ({@crontab} = {}) ->
+    super objectMode: true
+    return do =>
+      browser = await browser() 
+      aastock = new AAStock browser: browser
+      # run per 5 minutes for weekday from 09:00 - 16:00
+      @crontab ?= "0 */5 9-16 * * 1-5"
+      require 'node-schedule'
+        .scheduleJob @crontab, =>
+          console.debug "get detailed quote for #{process.env.SYMBOL} at #{new Date().toLocaleString()}"
+          await Promise.mapSeries process.env.SYMBOL?.split(' '), (symbol) =>
+            @emit 'data', await aastock.quote symbol
+      @
+
+  _read: ->
+    false
+          
+module.exports = {browser, AAStock, AAStockCron}
