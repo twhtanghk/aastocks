@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/twhtanghk/aastocks#readme",
   "devDependencies": {
+    "bluebird": "^3.5.3",
     "coffeescript": "^2.3.2",
     "leading-zeroes": "^2.0.1",
     "lodash": "^4.17.11",

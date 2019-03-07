@@ -1,16 +1,20 @@
 _ = require 'lodash'
 pad = require('leading-zeroes').default
 puppeteer = require 'puppeteer'
+Promise = require 'bluebird'
 
 browser = ->
-  await puppeteer.launch
-    headless: false
-    devtools: true
+  opts =
     args: [
       '--no-sandbox'
       '--disable-setuid-sandbox'
       '--disable-dev-shm-usage'
     ]
+  if process.env.DEBUG? and process.env.DEBUG == 'true'
+    _.extend opts,
+      headless: false
+      devtools: true
+  await puppeteer.launch opts
 
 class AAStock
   constructor: ({@browser, @urlTemplate}) ->
@@ -25,6 +29,7 @@ class AAStock
     await @page.waitForNavigation()
     ret =
       currPrice: await @currPrice()
+      change: await @change()
       pe: await @pe()
       pb:await @pb()
       dividend: await @dividend()
@@ -65,4 +70,11 @@ class AAStock
       link
     ]
 
+  change: ->
+    await Promise.all [
+      'table#tbQuote tr:nth-child(1) td:nth-child(2) > div > div:last-child > span'
+      'table#tbQuote tr:nth-child(2) td:nth-child(1) > div > div:last-child > span'
+    ].map (selector) =>
+      await @text await @page.$(selector)
+    
 module.exports = {browser, AAStock}
