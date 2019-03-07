@@ -82,14 +82,14 @@ class AAStock
   date: ->
     await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 
-mqtt = require 'mqtt'
+client = require 'mqtt'
   .connect process.env.MQTTURL,
     username: process.env.MQTTUSER
     clientId: process.env.MQTTCLIENT
     clean: false
   .on 'connect', ->
+    client.subscribe process.MQTTTOPIC, qos: 2
     console.debug 'mqtt connected'
-    mqtt.subscribe process.MQTTTOPIC, qos: 2
 
 {Readable} = require 'stream'
 
