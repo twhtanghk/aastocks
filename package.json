@@ -1,0 +1,25 @@
+{
+  "name": "aastocks",
+  "version": "0.0.1",
+  "description": "Web scaraper for aastocks detailed quote data",
+  "main": "index.js",
+  "scripts": {
+    "test": "coffee test/index.coffee"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/twhtanghk/aastocks.git"
+  },
+  "author": "Tommy Tang",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/twhtanghk/aastocks/issues"
+  },
+  "homepage": "https://github.com/twhtanghk/aastocks#readme",
+  "devDependencies": {
+    "coffeescript": "^2.3.2",
+    "leading-zeroes": "^2.0.1",
+    "lodash": "^4.17.11",
+    "puppeteer": "^1.13.0"
+  }
+}
