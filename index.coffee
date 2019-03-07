@@ -82,11 +82,31 @@ class AAStock
   date: ->
     await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 
+mqtt = require 'mqtt'
+  .connect process.env.MQTTURL,
+    username: process.env.MQTTUSER
+    clientId: process.env.MQTTCLIENT
+    clean: false
+  .on 'connect', ->
+    console.debug 'mqtt connected'
+    mqtt.subscribe process.MQTTTOPIC, qos: 2
+
 {Readable} = require 'stream'
 
 class AAStockCron extends Readable
+  symbols: []
+
   constructor: ({@crontab} = {}) ->
     super objectMode: true
+
+    # check if message contains {action: 'subscribe', data: [1, 1156]}
+    # and update symbols list
+    mqtt.on 'message', (topic, msg) =>
+      if topic == process.env.MQTTTOPIC
+        {action, data} = JSON.parse msg
+        if action == 'subscribe'
+          @symbols = data
+   
     return do =>
       browser = await browser() 
       aastock = new AAStock browser: browser
@@ -94,8 +114,8 @@ class AAStockCron extends Readable
       @crontab ?= "0 */5 9-16 * * 1-5"
       require 'node-schedule'
         .scheduleJob @crontab, =>
-          console.debug "get detailed quote for #{process.env.SYMBOL} at #{new Date().toLocaleString()}"
-          await Promise.mapSeries process.env.SYMBOL?.split(' '), (symbol) =>
+          console.debug "get detailed quote for #{symbols} at #{new Date().toLocaleString()}"
+          await Promise.mapSeries @symbols, (symbol) =>
             @emit 'data', await aastock.quote symbol
       @
 
