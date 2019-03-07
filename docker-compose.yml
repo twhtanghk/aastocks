@@ -1,0 +1,6 @@
+version: '2'
+services:
+  aastocks: 
+    image: twhtanghk/aastocks
+    env_file: 
+      - ./.env
