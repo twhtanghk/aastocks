@@ -2,5 +2,7 @@ version: '2'
 services:
   aastocks: 
     image: twhtanghk/aastocks
+    volume:
+      - ./data:/usr/src/app/data
     env_file: 
       - ./.env
