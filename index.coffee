@@ -21,23 +21,23 @@ class AAStock
     @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
 
   quote: (symbol) ->
-    @page = await @browser.newPage()
-    await @page.goto @url symbol
-    await @page.$eval '#mainForm', (form) ->
-      form.submit()
-    @page.setDefaultNavigationTimeout 60000
-    await @page.waitForNavigation()
-    ret =
-      symbol: symbol
-      name: await @name()
-      currPrice: await @currPrice()
-      change: await @change()
-      pe: await @pe()
-      pb:await @pb()
-      dividend: await @dividend()
-      date: await @date()
-    await @page.close()
-    return ret
+    try
+      @page = await @browser.newPage()
+      await @page.goto @url symbol
+      await @page.$eval '#mainForm', (form) ->
+        form.submit()
+      await @page.waitForNavigation()
+      return
+        symbol: symbol
+        name: await @name()
+        currPrice: await @currPrice()
+        change: await @change()
+        pe: await @pe()
+        pb:await @pb()
+        dividend: await @dividend()
+        date: await @date()
+    finally
+      await @page?.close()
 
   url: (symbol) ->
     _.template(@urlTemplate)
@@ -102,7 +102,6 @@ client = require 'mqtt'
   .connect process.env.MQTTURL,
     username: process.env.MQTTUSER
     clientId: process.env.MQTTCLIENT
-    clean: false
     incomingStore: incoming
     outgoingStore: outgoing
   .on 'connect', ->
@@ -139,12 +138,15 @@ class AAStockCron extends Readable
       browser = await browser() 
       aastock = new AAStock browser: browser
       # run per 5 minutes for weekday from 09:00 - 16:00
-      @crontab ?= "0 */5 9-16 * * 1-5"
+      @crontab ?= process.env.CRONTAB || "0 */5 9-16 * * 1-5"
       require 'node-schedule'
         .scheduleJob @crontab, =>
           console.debug "get detailed quote for #{@symbols} at #{new Date().toLocaleString()}"
           await Promise.mapSeries @symbols, (symbol) =>
-            @emit 'data', await aastock.quote symbol
+            try
+              @emit 'data', await aastock.quote symbol
+            catch err
+              console.error "#{symbol}: #{err.toString()}"
       @
 
   _read: ->
