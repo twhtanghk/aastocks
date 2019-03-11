@@ -52,36 +52,38 @@ class AAStock
     await @text await @page.$('#SQ_Name span')
 
   currPrice: ->
-    await @text await @page.$('#labelLast span')
+    parseFloat await @text await @page.$('#labelLast span')
 
   pe: ->
     ret = await @text await @page.$('div#tbPERatio > div:last-child')
     if ret != 'N/A'
       ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
-      return ret[1..2]
+      return parseFloat ret[1]
     else
-      return ['N/A', 'N/A']
+      return NaN
 
   pb: ->
     ret = await @text await @page.$('div#tbPBRatio > div:last-child')
     if ret != 'N/A'
       ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
-      return ret[1..2]
+      return parseFloat ret[1]
     else
-      return ['N/A', 'N/A']
+      return NaN
 
   dividend: ->
     ret = await @text await @page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
     if ret != 'N/A'
       ret = /[ ]*(\d+\.\d+%)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
+      ret[1] = parseFloat ret[1]
+      ret[2] = parseFloat ret[2]
     else
-      ret = ['', 'N/A', 'N/A']
+      ret = ['', NaN, NaN]
     link = await @page.$('table#tbQuote tr:last-child a')
     link = await link.getProperty 'href'
     link = await link.jsonValue()
     [
-      ret[1]
       ret[2]
+      ret[1]
       link
     ]
 
@@ -90,7 +92,7 @@ class AAStock
       'table#tbQuote tr:nth-child(1) td:nth-child(2) > div > div:last-child > span'
       'table#tbQuote tr:nth-child(2) td:nth-child(1) > div > div:last-child > span'
     ].map (selector) =>
-      await @text await @page.$(selector)
+      parseFloat await @text await @page.$(selector)
     
   date: ->
     await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
