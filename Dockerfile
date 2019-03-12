@@ -12,7 +12,6 @@ RUN npm i \
 &&  apt-get update \
 &&  apt-get install -y google-chrome-unstable --no-install-recommends \
 &&  rm -rf /var/lib/apt/lists/* \
-&&  apt-get purge --auto-remove -y curl \
-&&  rm -rf /src/*.deb
+&&  apt-get purge --auto-remove -y curl
 
 CMD npm test
