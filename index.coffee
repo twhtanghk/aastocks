@@ -19,25 +19,24 @@ browser = ->
 class AAStock
   constructor: ({@browser, @urlTemplate}) ->
     @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
+    return do =>
+      @page = await @browser.newPage()
+      @
 
   quote: (symbol) ->
-    try
-      @page = await @browser.newPage()
-      await @page.goto @url symbol
-      await @page.$eval '#mainForm', (form) ->
-        form.submit()
-      await @page.waitForNavigation()
-      return
-        symbol: symbol
-        name: await @name()
-        currPrice: await @currPrice()
-        change: await @change()
-        pe: await @pe()
-        pb:await @pb()
-        dividend: await @dividend()
-        date: await @date()
-    finally
-      await @page?.close()
+    await @page.goto @url symbol
+    await @page.$eval '#mainForm', (form) ->
+      form.submit()
+    await @page.waitForNavigation()
+    return
+      symbol: symbol
+      name: await @name()
+      currPrice: await @currPrice()
+      change: await @change()
+      pe: await @pe()
+      pb:await @pb()
+      dividend: await @dividend()
+      date: await @date()
 
   url: (symbol) ->
     _.template(@urlTemplate)
@@ -139,7 +138,7 @@ class AAStockCron extends Readable
    
     return do =>
       browser = await browser() 
-      aastock = new AAStock browser: browser
+      aastock = await new AAStock browser: browser
       # run per 5 minutes for weekday from 09:00 - 16:00
       @crontab ?= process.env.CRONTAB || "0 */5 9-16 * * 1-5"
       require 'node-schedule'
