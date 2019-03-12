@@ -123,7 +123,10 @@ class AAStockCron extends Readable
     # and update symbol list
     client.on 'message', (topic, msg) =>
       if topic == process.env.MQTTTOPIC
-        {action, data} = JSON.parse msg
+        try
+          {action, data} = JSON.parse msg
+        catch err
+          console.error "#{msg}: #{err.toString()}"
         if action == 'subscribe'
           asc = (a, b) ->
             a - b
