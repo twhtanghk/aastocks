@@ -36,7 +36,7 @@ class AAStock
         pe: await @pe()
         pb:await @pb()
         dividend: await @dividend()
-      lastUpdatedAt: @date()
+      lastUpdatedAt: await @date()
 
   url: (symbol) ->
     _.template(@urlTemplate)
