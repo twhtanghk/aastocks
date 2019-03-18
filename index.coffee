@@ -29,6 +29,7 @@ class AAStock
       form.submit()
     await @page.waitForNavigation()
     return
+      src: 'aastocks'
       symbol: symbol
       name: await @name()
       details:
