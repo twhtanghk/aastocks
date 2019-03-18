@@ -31,12 +31,11 @@ class AAStock
     return
       symbol: symbol
       name: await @name()
-      currPrice: await @currPrice()
-      change: await @change()
-      pe: await @pe()
-      pb:await @pb()
-      dividend: await @dividend()
-      date: await @date()
+      details:
+        pe: await @pe()
+        pb:await @pb()
+        dividend: await @dividend()
+      lastUpdatedAt: @date()
 
   url: (symbol) ->
     _.template(@urlTemplate)
