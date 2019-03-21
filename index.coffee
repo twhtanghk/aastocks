@@ -130,7 +130,7 @@ client = require 'mqtt'
     incomingStore: incoming
     outgoingStore: outgoing
   .on 'connect', ->
-    client.subscribe process.env.MQTTTOPIC, qos: 2
+    client.subscribe "#{process.env.MQTTTOPIC.split('/')[0]}/#", qos, 2
     console.debug 'mqtt connected'
 
 {Readable, Transform} = require 'stream'
@@ -147,9 +147,9 @@ class AAStockCron extends Readable
     # check if message contains {action: 'subscribe', data: [1, 1156]}
     # and update symbol list
     client.on 'message', (topic, msg) =>
-      if topic == process.env.MQTTTOPIC
+      if topic == process.env.MQTTTOPIC.split('/')[0]
         try
-          {action, data} = JSON.parse msg
+          {action, data} = JSON.parse msg.toString()
         catch err
           console.error "#{msg}: #{err.toString()}"
         if action == 'subscribe'
