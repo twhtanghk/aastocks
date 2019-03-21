@@ -70,9 +70,7 @@ class AAStock
   lowHigh: ->
     ret = await @text await @page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
     if ret != 'N/A'
-      console.log ret
       ret = /(\d+\.\d+) \- (\d+\.\d+)/.exec ret
-      console.log ret
       ret[1] = parseFloat ret[1]
       ret[2] = parseFloat ret[2]
       return ret[1..2]
