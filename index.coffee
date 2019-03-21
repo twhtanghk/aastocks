@@ -130,7 +130,7 @@ client = require 'mqtt'
     incomingStore: incoming
     outgoingStore: outgoing
   .on 'connect', ->
-    client.subscribe "#{process.env.MQTTTOPIC.split('/')[0]}/#", qos, 2
+    client.subscribe "#{process.env.MQTTTOPIC.split('/')[0]}/#", qos: 2
     console.debug 'mqtt connected'
 
 {Readable, Transform} = require 'stream'
