@@ -32,6 +32,11 @@ class AAStock
       src: 'aastocks'
       symbol: symbol
       name: await @name()
+      quote:
+        curr: await @currPrice()
+        last: await @lastPrice()
+        lowHigh: await @lowHigh()
+        change: await @change()
       details:
         pe: await @pe()
         pb:await @pb()
@@ -53,6 +58,27 @@ class AAStock
   currPrice: ->
     parseFloat await @text await @page.$('#labelLast span')
 
+  lastPrice: ->
+    ret = await @text await @page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
+    if ret != 'N/A'
+      ret = /(.*) \/ (.*)/.exec ret
+      ret[2] = ret[2].trim()
+      return if ret[2] == 'N/A' then NaN else parseFloat ret[2]
+    else
+      return NaN
+    
+  lowHigh: ->
+    ret = await @text await @page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
+    if ret != 'N/A'
+      console.log ret
+      ret = /(\d+\.\d+) \- (\d+\.\d+)/.exec ret
+      console.log ret
+      ret[1] = parseFloat ret[1]
+      ret[2] = parseFloat ret[2]
+      return ret[1..2]
+    else
+      return [NaN, NaN]
+      
   pe: ->
     ret = await @text await @page.$('div#tbPERatio > div:last-child')
     if ret != 'N/A'
