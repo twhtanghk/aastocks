@@ -149,7 +149,8 @@ class StockMqtt
               when 'subscribe'
                 @symbols = @symbols
                   .concat data
-                  .sort()
+                  .sort (a, b) ->
+                    a - b
               when 'unsubscribe'
                 @symbols = @symbols
                   .filter (code) ->
@@ -159,13 +160,12 @@ class StockMqtt
             console.error err
 
 {Readable, Transform} = require 'stream'
+mqtt = new StockMqtt()
 
 # monitor mqtt message for any update on symbol list
 # schedule task to get detailed quote of the specified symbol list
 # emit data for the detailed quote
 class AAStockCron extends Readable
-  mqtt: new StockMqtt()
-
   constructor: ({@crontab} = {}) ->
     super objectMode: true
 
@@ -176,8 +176,8 @@ class AAStockCron extends Readable
       @crontab ?= process.env.CRONTAB || "0 */5 9-16 * * 1-5"
       require 'node-schedule'
         .scheduleJob @crontab, =>
-          console.debug "get detailed quote for #{@mqtt.symbols} at #{new Date().toLocaleString()}"
-          await Promise.mapSeries @mqtt.symbols, (symbol) =>
+          console.debug "get detailed quote for #{mqtt.symbols} at #{new Date().toLocaleString()}"
+          await Promise.mapSeries mqtt.symbols, (symbol) =>
             try
               @emit 'data', await aastock.quote symbol
             catch err
@@ -193,7 +193,7 @@ class AAStockMqtt extends Transform
     super opts
 
   _transform: (data, encoding, cb) ->
-    client.publish process.env.MQTTTOPIC, JSON.stringify data
+    mqtt.client.publish process.env.MQTTTOPIC, JSON.stringify data
     @push data
     cb()
   
