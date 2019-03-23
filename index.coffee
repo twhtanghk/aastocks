@@ -121,15 +121,42 @@ class AAStock
     await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 
 {incoming, outgoing} = require('mqtt-level-store') './data'
-client = require 'mqtt'
-  .connect process.env.MQTTURL,
-    username: process.env.MQTTUSER
-    clientId: process.env.MQTTCLIENT
-    incomingStore: incoming
-    outgoingStore: outgoing
-  .on 'connect', ->
-    client.subscribe "#{process.env.MQTTTOPIC.split('/')[0]}/#", qos: 2
-    console.debug 'mqtt connected'
+class StockMqtt
+  topic: process.env.MQTTTOPIC.split('/')[0]
+
+  client: null
+
+  symbols: []
+
+  patterns: []
+`
+  constructor: ->
+    @client = require 'mqtt'
+      .connect process.env.MQTTURL,
+        username: process.env.MQTTUSER
+        clientId: process.env.MQTTCLIENT
+        incomingStore: incoming
+        outgoingStore: outgoing
+      .on 'connect', ->
+        client.subscribe "#{@topic}/#", qos: 2
+        console.debug 'mqtt connected'
+      .on 'message', (topic, msg) ->
+        if topic == @topic
+          try
+            msg = JSON.parse msg.toString()
+            {action, data} = msg
+            switch action
+              when 'subscribe'
+                @symbols = @symbols
+                  .concat data
+                  .sort()
+              when 'unsubscribe'
+                @symbols = @symbols
+                  .filter (code) ->
+                    code in data
+            console.debug "update symbols: #{@symbols}"
+          catch err
+            console.error err
 
 {Readable, Transform} = require 'stream'
 
@@ -137,29 +164,11 @@ client = require 'mqtt'
 # schedule task to get detailed quote of the specified symbol list
 # emit data for the detailed quote
 class AAStockCron extends Readable
-  symbols: []
+  mqtt: new StockMqtt()
 
   constructor: ({@crontab} = {}) ->
     super objectMode: true
 
-    # check if message contains {action: 'subscribe', data: [1, 1156]}
-    # and update symbol list
-    client.on 'message', (topic, msg) =>
-      if topic == process.env.MQTTTOPIC.split('/')[0]
-        try
-          {action, data} = JSON.parse msg.toString()
-        catch err
-          console.error "#{msg}: #{err.toString()}"
-        if action == 'subscribe'
-          asc = (a, b) ->
-            a - b
-          data.sort asc
-          for i in data
-            if i not in @symbols
-              @symbols.push i
-          @symbols.sort asc
-          console.debug "update symbols: #{@symbols}"
-   
     return do =>
       browser = await browser() 
       aastock = await new AAStock browser: browser
@@ -167,8 +176,8 @@ class AAStockCron extends Readable
       @crontab ?= process.env.CRONTAB || "0 */5 9-16 * * 1-5"
       require 'node-schedule'
         .scheduleJob @crontab, =>
-          console.debug "get detailed quote for #{@symbols} at #{new Date().toLocaleString()}"
-          await Promise.mapSeries @symbols, (symbol) =>
+          console.debug "get detailed quote for #{@mqtt.symbols} at #{new Date().toLocaleString()}"
+          await Promise.mapSeries @mqtt.symbols, (symbol) =>
             try
               @emit 'data', await aastock.quote symbol
             catch err
@@ -188,4 +197,4 @@ class AAStockMqtt extends Transform
     @push data
     cb()
   
-module.exports = {browser, AAStock, AAStockCron, AAStockMqtt}
+module.exports = {browser, StockMqtt, AAStock, AAStockCron, AAStockMqtt}
