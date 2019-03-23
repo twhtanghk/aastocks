@@ -129,7 +129,7 @@ class StockMqtt
   symbols: []
 
   patterns: []
-`
+
   constructor: ->
     @client = require 'mqtt'
       .connect process.env.MQTTURL,
@@ -137,10 +137,10 @@ class StockMqtt
         clientId: process.env.MQTTCLIENT
         incomingStore: incoming
         outgoingStore: outgoing
-      .on 'connect', ->
-        client.subscribe "#{@topic}/#", qos: 2
+      .on 'connect', =>
+        @client.subscribe "#{@topic}/#", qos: 2
         console.debug 'mqtt connected'
-      .on 'message', (topic, msg) ->
+      .on 'message', (topic, msg) =>
         if topic == @topic
           try
             msg = JSON.parse msg.toString()
