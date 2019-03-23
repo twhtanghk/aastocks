@@ -159,42 +159,47 @@ class StockMqtt
           catch err
             console.error err
 
-{Readable, Transform} = require 'stream'
 mqtt = new StockMqtt()
+scheduler = require 'node-schedule'
 
-# monitor mqtt message for any update on symbol list
-# schedule task to get detailed quote of the specified symbol list
-# emit data for the detailed quote
-class AAStockCron extends Readable
-  constructor: ({@crontab} = {}) ->
-    super objectMode: true
+# schedule task to get detailed quote of the specified symbol list kept in mqtt
+class AAStockCron
+  cron:
+    quote: process.env.QUOTECRON || '0 */30 9-16 * * 1-5'
+    publish: process.env.PUBLISHCRON || '0 */5 * * * *'
 
+  list: []
+
+  constructor: ->
+    process.on 'SIGTERM', =>
+      console.debug @cron
+      console.debug @list
     return do =>
       browser = await browser() 
-      aastock = await new AAStock browser: browser
-      # run per 5 minutes for weekday from 09:00 - 16:00
-      @crontab ?= process.env.CRONTAB || "0 */5 9-16 * * 1-5"
-      require 'node-schedule'
-        .scheduleJob @crontab, =>
-          console.debug "get detailed quote for #{mqtt.symbols} at #{new Date().toLocaleString()}"
-          await Promise.mapSeries mqtt.symbols, (symbol) =>
-            try
-              @emit 'data', await aastock.quote symbol
-            catch err
-              console.error "#{symbol}: #{err.toString()}"
+      @aastock = await new AAStock browser: browser
+      scheduler.scheduleJob @cron.quote, =>
+        @quote()
+      scheduler.scheduleJob @cron.publish, =>
+        @publish()
       @
 
-  _read: ->
-    false
+  quote: ->
+    console.debug "get detailed quote for #{mqtt.symbols} at #{new Date().toLocaleString()}"
+    await Promise.mapSeries mqtt.symbols, (symbol) =>
+      try
+        @add await @aastock.quote symbol
+      catch err
+        console.error "#{symbol}: #{err.toString()}"
 
-# filter to send the input stream of quote data to specified mqtt channel
-class AAStockMqtt extends Transform
-  constructor: (opts = {objectMode: true}) ->
-    super opts
+  publish: ->
+    for data in @list
+      mqtt.client.publist process.env.MQTTTOPIC, JSON.stringify data
 
-  _transform: (data, encoding, cb) ->
-    mqtt.client.publish process.env.MQTTTOPIC, JSON.stringify data
-    @push data
-    cb()
-  
-module.exports = {browser, StockMqtt, AAStock, AAStockCron, AAStockMqtt}
+  add: (data) ->
+    @del data.symbol
+    @list.push data
+
+  del: (symbol) ->
+    @list = _.filter @list, symbol: symbol
+
+module.exports = {browser, StockMqtt, AAStock, AAStockCron}
