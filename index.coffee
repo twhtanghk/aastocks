@@ -24,7 +24,7 @@ class AAStock
       @
 
   quote: (symbol) ->
-    await @page.goto @url symbol
+    await @page.goto @url symbol, waitUntil: 'networkidle2'
     await @page.$eval '#mainForm', (form) ->
       form.submit()
     await @page.waitForNavigation()
