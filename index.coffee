@@ -128,7 +128,9 @@ class AAStock
   date: ->
     await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 
+guid = require 'browserguid'
 {incoming, outgoing} = require('mqtt-level-store') './data'
+
 class StockMqtt
   topic: process.env.MQTTTOPIC.split('/')[0]
 
@@ -142,9 +144,10 @@ class StockMqtt
     @client = require 'mqtt'
       .connect process.env.MQTTURL,
         username: process.env.MQTTUSER
-        clientId: process.env.MQTTCLIENT
+        clientId: process.env.MQTTCLIENT || guid()
         incomingStore: incoming
         outgoingStore: outgoing
+        clean: false
       .on 'connect', =>
         @client.subscribe "#{@topic}/#", qos: 2
         console.debug 'mqtt connected'
@@ -204,8 +207,13 @@ class AAStockCron
       mqtt.client.publish process.env.MQTTTOPIC, JSON.stringify data
 
   add: (data) ->
-    @del data.symbol
-    @list.push data
+    selected = _.find @list, (quote) ->
+      quote.symbol == data.symbol
+    if selected?
+      _.extend selected, data
+    else
+      @list.push data
+      @list = _.sortBy @list, 'symbol'
 
   del: (symbol) ->
     @list = _.filter @list, (quote) ->
