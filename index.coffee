@@ -21,6 +21,14 @@ class AAStock
     @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
     return do =>
       @page = await @browser.newPage()
+      await @page.setRequestInterception true
+      @page.on 'request', (req) =>
+        allowed = new URL @urlTemplate
+        curr = new URL req.url()
+        if req.resourceType() == 'image' or curr.hostname != allowed.hostname
+          req.abort()
+        else
+          req.continue()
       @
 
   quote: (symbol) ->
@@ -193,13 +201,14 @@ class AAStockCron
 
   publish: ->
     for data in @list
-      mqtt.client.publist process.env.MQTTTOPIC, JSON.stringify data
+      mqtt.client.publish process.env.MQTTTOPIC, JSON.stringify data
 
   add: (data) ->
     @del data.symbol
     @list.push data
 
   del: (symbol) ->
-    @list = _.filter @list, symbol: symbol
+    @list = _.filter @list, (quote) ->
+      quote.symbol != symbol
 
 module.exports = {browser, StockMqtt, AAStock, AAStockCron}
