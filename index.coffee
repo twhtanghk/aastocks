@@ -158,14 +158,14 @@ class StockMqtt
             {action, data} = msg
             switch action
               when 'subscribe'
-                @symbols = @symbols
+                @symbols = _.sortedUniq @symbols
                   .concat data
                   .sort (a, b) ->
                     a - b
               when 'unsubscribe'
                 @symbols = @symbols
                   .filter (code) ->
-                    code in data
+                    code not in data
             console.debug "update symbols: #{@symbols}"
           catch err
             console.error err
