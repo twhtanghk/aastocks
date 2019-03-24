@@ -21,6 +21,14 @@ class AAStock
     @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
     return do =>
       @page = await @browser.newPage()
+      await @page.setRequestInterception true
+      @page.on 'request', (req) =>
+        allowed = new URL @urlTemplate
+        curr = new URL req.url()
+        if req.resourceType() == 'image' or curr.hostname != allowed.hostname
+          req.abort()
+        else
+          req.continue()
       @
 
   quote: (symbol) ->
@@ -120,72 +128,95 @@ class AAStock
   date: ->
     await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 
+guid = require 'browserguid'
 {incoming, outgoing} = require('mqtt-level-store') './data'
-client = require 'mqtt'
-  .connect process.env.MQTTURL,
-    username: process.env.MQTTUSER
-    clientId: process.env.MQTTCLIENT
-    incomingStore: incoming
-    outgoingStore: outgoing
-  .on 'connect', ->
-    client.subscribe "#{process.env.MQTTTOPIC.split('/')[0]}/#", qos: 2
-    console.debug 'mqtt connected'
 
-{Readable, Transform} = require 'stream'
+class StockMqtt
+  topic: process.env.MQTTTOPIC.split('/')[0]
 
-# monitor mqtt message for any update on symbol list
-# schedule task to get detailed quote of the specified symbol list
-# emit data for the detailed quote
-class AAStockCron extends Readable
+  client: null
+
   symbols: []
 
-  constructor: ({@crontab} = {}) ->
-    super objectMode: true
+  patterns: []
 
-    # check if message contains {action: 'subscribe', data: [1, 1156]}
-    # and update symbol list
-    client.on 'message', (topic, msg) =>
-      if topic == process.env.MQTTTOPIC.split('/')[0]
-        try
-          {action, data} = JSON.parse msg.toString()
-        catch err
-          console.error "#{msg}: #{err.toString()}"
-        if action == 'subscribe'
-          asc = (a, b) ->
-            a - b
-          data.sort asc
-          for i in data
-            if i not in @symbols
-              @symbols.push i
-          @symbols.sort asc
-          console.debug "update symbols: #{@symbols}"
-   
+  constructor: ->
+    @client = require 'mqtt'
+      .connect process.env.MQTTURL,
+        username: process.env.MQTTUSER
+        clientId: process.env.MQTTCLIENT || guid()
+        incomingStore: incoming
+        outgoingStore: outgoing
+        clean: false
+      .on 'connect', =>
+        @client.subscribe "#{@topic}/#", qos: 2
+        console.debug 'mqtt connected'
+      .on 'message', (topic, msg) =>
+        if topic == @topic
+          try
+            msg = JSON.parse msg.toString()
+            {action, data} = msg
+            switch action
+              when 'subscribe'
+                @symbols = @symbols
+                  .concat data
+                  .sort (a, b) ->
+                    a - b
+              when 'unsubscribe'
+                @symbols = @symbols
+                  .filter (code) ->
+                    code in data
+            console.debug "update symbols: #{@symbols}"
+          catch err
+            console.error err
+
+mqtt = new StockMqtt()
+scheduler = require 'node-schedule'
+
+# schedule task to get detailed quote of the specified symbol list kept in mqtt
+class AAStockCron
+  cron:
+    quote: process.env.QUOTECRON || '0 */30 9-16 * * 1-5'
+    publish: process.env.PUBLISHCRON || '0 */5 * * * *'
+
+  list: []
+
+  constructor: ->
+    process.on 'SIGTERM', =>
+      console.debug @cron
+      console.debug @list
     return do =>
       browser = await browser() 
-      aastock = await new AAStock browser: browser
-      # run per 5 minutes for weekday from 09:00 - 16:00
-      @crontab ?= process.env.CRONTAB || "0 */5 9-16 * * 1-5"
-      require 'node-schedule'
-        .scheduleJob @crontab, =>
-          console.debug "get detailed quote for #{@symbols} at #{new Date().toLocaleString()}"
-          await Promise.mapSeries @symbols, (symbol) =>
-            try
-              @emit 'data', await aastock.quote symbol
-            catch err
-              console.error "#{symbol}: #{err.toString()}"
+      @aastock = await new AAStock browser: browser
+      scheduler.scheduleJob @cron.quote, =>
+        @quote()
+      scheduler.scheduleJob @cron.publish, =>
+        @publish()
       @
 
-  _read: ->
-    false
+  quote: ->
+    console.debug "get detailed quote for #{mqtt.symbols} at #{new Date().toLocaleString()}"
+    await Promise.mapSeries mqtt.symbols, (symbol) =>
+      try
+        @add await @aastock.quote symbol
+      catch err
+        console.error "#{symbol}: #{err.toString()}"
 
-# filter to send the input stream of quote data to specified mqtt channel
-class AAStockMqtt extends Transform
-  constructor: (opts = {objectMode: true}) ->
-    super opts
+  publish: ->
+    for data in @list
+      mqtt.client.publish process.env.MQTTTOPIC, JSON.stringify data
 
-  _transform: (data, encoding, cb) ->
-    client.publish process.env.MQTTTOPIC, JSON.stringify data
-    @push data
-    cb()
-  
-module.exports = {browser, AAStock, AAStockCron, AAStockMqtt}
+  add: (data) ->
+    selected = _.find @list, (quote) ->
+      quote.symbol == data.symbol
+    if selected?
+      _.extend selected, data
+    else
+      @list.push data
+      @list = _.sortBy @list, 'symbol'
+
+  del: (symbol) ->
+    @list = _.filter @list, (quote) ->
+      quote.symbol != symbol
+
+module.exports = {browser, StockMqtt, AAStock, AAStockCron}
