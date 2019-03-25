@@ -128,33 +128,11 @@ class AAStock
   date: ->
     await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 
-client = ->
+stockMqtt = ->
   guid = require 'browserguid'
 
   {incoming, outgoing} = require('mqtt-level-store') './data'
 
-  client.topic = process.env.MQTTTOPIC.split('/')[0]
-
-  client.symbols = []
-
-  client.patterns = []
-
-  subscribe = (list) ->
-    old = symbols
-    symbols = _.sortedUniq(@symbols
-      .concat list
-      .sort (a, b) ->
-        a - b
-    )
-    client.emit 'symbols', symbols, old
-
-  unsubscribe = (list) ->
-    old = symbols
-    symbols = symbols
-       .filter (code) ->
-         code not in data
-    client.emit 'symbols', symbols, old
-  
   client = require 'mqtt'
     .connect process.env.MQTTURL,
       username: process.env.MQTTUSER
@@ -163,10 +141,10 @@ client = ->
       outgoingStore: outgoing
       clean: false
     .on 'connect', =>
-      @client.subscribe "#{@topic}/#", qos: 2
+      client.subscribe "#{@topic}/#", qos: 2
       console.debug 'mqtt connected'
     .on 'message', (topic, msg) =>
-      if topic == @topic
+      if topic == client.topic
         try
           msg = JSON.parse msg.toString()
           {action, data} = msg
@@ -178,11 +156,33 @@ client = ->
         catch err
           console.error err
 
+  client.topic = process.env.MQTTTOPIC.split('/')[0]
+
+  client.symbols = []
+
+  client.patterns = []
+
+  subscribe = (list) ->
+    old = client.symbols
+    client.symbols = _.sortedUniq(client.symbols
+      .concat list
+      .sort (a, b) ->
+        a - b
+    )
+    client.emit 'symbols', client.symbols, old
+
+  unsubscribe = (list) ->
+    old = client.symbols
+    client.symbols = client.symbols
+       .filter (code) ->
+         code not in data
+    client.emit 'symbols', client.symbols, old
+  
+  client
+
 # schedule task to get detailed quote of the specified symbol list kept in mqtt
 class AAStockCron
-  mqtt: client()
-    .on 'symbols', (symbols) ->
-    
+  mqtt: stockMqtt()
 
   cron:
     quote: process.env.QUOTECRON || '0 */30 9-16 * * 1-5'
@@ -199,12 +199,15 @@ class AAStockCron
       browser = await browser() 
       @aastock = await new AAStock browser: browser
       scheduler.scheduleJob @cron.quote, =>
-        @quote()
+        @quote @mqtt.symbols
       scheduler.scheduleJob @cron.publish, =>
         @publish()
+      @mqtt.on 'symbols', (symbols, old) =>
+        await @quote _.difference symbols, old
+        await @publish()
       @
 
-  quote: ->
+  quote: (symbols) ->
     console.debug "get detailed quote for #{@mqtt.symbols} at #{new Date().toLocaleString()}"
     await Promise.mapSeries @mqtt.symbols, (symbol) =>
       try
@@ -229,4 +232,4 @@ class AAStockCron
     @list = _.filter @list, (quote) ->
       quote.symbol != symbol
 
-module.exports = {browser, StockMqtt, AAStock, AAStockCron}
+module.exports = {browser, stockMqtt, AAStock, AAStockCron}
