@@ -47,7 +47,7 @@ class AAStock
         change: await @change()
       details:
         pe: await @pe()
-        pb:await @pb()
+        pb: await @pb()
         dividend: await @dividend()
       lastUpdatedAt: await @date()
 
@@ -128,54 +128,62 @@ class AAStock
   date: ->
     await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 
-guid = require 'browserguid'
-{incoming, outgoing} = require('mqtt-level-store') './data'
+client = ->
+  guid = require 'browserguid'
 
-class StockMqtt
-  topic: process.env.MQTTTOPIC.split('/')[0]
+  {incoming, outgoing} = require('mqtt-level-store') './data'
 
-  client: null
+  client.topic = process.env.MQTTTOPIC.split('/')[0]
 
-  symbols: []
+  client.symbols = []
 
-  patterns: []
+  client.patterns = []
 
-  constructor: ->
-    @client = require 'mqtt'
-      .connect process.env.MQTTURL,
-        username: process.env.MQTTUSER
-        clientId: process.env.MQTTCLIENT || guid()
-        incomingStore: incoming
-        outgoingStore: outgoing
-        clean: false
-      .on 'connect', =>
-        @client.subscribe "#{@topic}/#", qos: 2
-        console.debug 'mqtt connected'
-      .on 'message', (topic, msg) =>
-        if topic == @topic
-          try
-            msg = JSON.parse msg.toString()
-            {action, data} = msg
-            switch action
-              when 'subscribe'
-                @symbols = _.sortedUniq(@symbols
-                  .concat data
-                  .sort (a, b) ->
-                    a - b
-                )
-              when 'unsubscribe'
-                @symbols = @symbols
-                  .filter (code) ->
-                    code not in data
-            console.debug "update symbols: #{@symbols}"
-          catch err
-            console.error err
+  subscribe = (list) ->
+    old = symbols
+    symbols = _.sortedUniq(@symbols
+      .concat list
+      .sort (a, b) ->
+        a - b
+    )
+    client.emit 'symbols', symbols, old
 
-mqtt = new StockMqtt()
-scheduler = require 'node-schedule'
+  unsubscribe = (list) ->
+    old = symbols
+    symbols = symbols
+       .filter (code) ->
+         code not in data
+    client.emit 'symbols', symbols, old
+  
+  client = require 'mqtt'
+    .connect process.env.MQTTURL,
+      username: process.env.MQTTUSER
+      clientId: process.env.MQTTCLIENT || guid()
+      incomingStore: incoming
+      outgoingStore: outgoing
+      clean: false
+    .on 'connect', =>
+      @client.subscribe "#{@topic}/#", qos: 2
+      console.debug 'mqtt connected'
+    .on 'message', (topic, msg) =>
+      if topic == @topic
+        try
+          msg = JSON.parse msg.toString()
+          {action, data} = msg
+          switch action
+            when 'subscribe'
+              subscribe data
+            when 'unsubscribe'
+              unsubscribe data
+        catch err
+          console.error err
 
 # schedule task to get detailed quote of the specified symbol list kept in mqtt
 class AAStockCron
+  mqtt: client()
+    .on 'symbols', (symbols) ->
+    
+
   cron:
     quote: process.env.QUOTECRON || '0 */30 9-16 * * 1-5'
     publish: process.env.PUBLISHCRON || '0 */5 * * * *'
@@ -187,6 +195,7 @@ class AAStockCron
       console.debug @cron
       console.debug @list
     return do =>
+      scheduler = require 'node-schedule'
       browser = await browser() 
       @aastock = await new AAStock browser: browser
       scheduler.scheduleJob @cron.quote, =>
@@ -196,8 +205,8 @@ class AAStockCron
       @
 
   quote: ->
-    console.debug "get detailed quote for #{mqtt.symbols} at #{new Date().toLocaleString()}"
-    await Promise.mapSeries mqtt.symbols, (symbol) =>
+    console.debug "get detailed quote for #{@mqtt.symbols} at #{new Date().toLocaleString()}"
+    await Promise.mapSeries @mqtt.symbols, (symbol) =>
       try
         @add await @aastock.quote symbol
       catch err
@@ -205,7 +214,7 @@ class AAStockCron
 
   publish: ->
     for data in @list
-      mqtt.client.publish process.env.MQTTTOPIC, JSON.stringify data
+      @mqtt.publish process.env.MQTTTOPIC, JSON.stringify data
 
   add: (data) ->
     selected = _.find @list, (quote) ->
