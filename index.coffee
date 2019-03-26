@@ -10,6 +10,7 @@ browser = ->
       '--disable-setuid-sandbox'
       '--disable-dev-shm-usage'
     ]
+    handleSIGTERM: false
   if process.env.DEBUG? and process.env.DEBUG == 'true'
     _.extend opts,
       headless: false
@@ -19,55 +20,60 @@ browser = ->
 class AAStock
   constructor: ({@browser, @urlTemplate}) ->
     @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
-    return do =>
-      @page = await @browser.newPage()
-      await @page.setRequestInterception true
-      @page.on 'request', (req) =>
-        allowed = new URL @urlTemplate
-        curr = new URL req.url()
-        if req.resourceType() == 'image' or curr.hostname != allowed.hostname
-          req.abort()
-        else
-          req.continue()
-      @
+
+  newPage: ->
+    page = await @browser.newPage()
+    await page.setUserAgent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3723.0 Safari/537.36'
+    await page.setRequestInterception true
+    page.on 'request', (req) =>
+      allowed = new URL @urlTemplate
+      curr = new URL req.url()
+      if req.resourceType() == 'image' or curr.hostname != allowed.hostname
+        req.abort()
+      else
+        req.continue()
 
   quote: (symbol) ->
-    await @page.goto @url symbol, waitUntil: 'networkidle2'
-    await @page.$eval '#mainForm', (form) ->
-      form.submit()
-    await @page.waitForNavigation()
-    return
-      src: 'aastocks'
-      symbol: symbol
-      name: await @name()
-      quote:
-        curr: await @currPrice()
-        last: await @lastPrice()
-        lowHigh: await @lowHigh()
-        change: await @change()
-      details:
-        pe: await @pe()
-        pb:await @pb()
-        dividend: await @dividend()
-      lastUpdatedAt: await @date()
+    try
+      page = await @newPage()
+      await page.goto @url symbol, waitUntil: 'networkidle2'
+      await page.$eval '#mainForm', (form) ->
+        form.submit()
+      await page.waitForNavigation()
+      return
+        src: 'aastocks'
+        symbol: symbol
+        name: await @name page
+        quote:
+          curr: await @currPrice page
+          last: await @lastPrice page
+          lowHigh: await @lowHigh page
+          change: await @change page
+        details:
+          pe: await @pe page
+          pb: await @pb page
+          dividend: await @dividend page
+        lastUpdatedAt: await @date page
+    finally
+      await page.close()
 
   url: (symbol) ->
     _.template(@urlTemplate)
       symbol: pad symbol, 5
 
-  text: (el) ->
+  text: (page, el) ->
     content = (el) ->
       el.textContent
-    (await @page.evaluate content, el).trim()
+    (await page.evaluate content, el).trim()
  
-  name: ->
-    await @text await @page.$('#SQ_Name span')
+  name: (page) ->
+    await @text page, await page.$('#SQ_Name span')
 
-  currPrice: ->
-    parseFloat await @text await @page.$('#labelLast span')
+  currPrice: (page) ->
+    parseFloat await @text page, await page.$('#labelLast span')
 
-  lastPrice: ->
-    ret = await @text await @page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
+  lastPrice: (page) ->
+    ret = await @text page, await page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
     if ret != 'N/A'
       ret = /(.*) \/ (.*)/.exec ret
       ret[2] = ret[2].trim()
@@ -75,8 +81,8 @@ class AAStock
     else
       return NaN
     
-  lowHigh: ->
-    ret = await @text await @page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
+  lowHigh: (page) ->
+    ret = await @text page, await page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
     if ret != 'N/A'
       ret = /(\d+\.\d+) \- (\d+\.\d+)/.exec ret
       ret[1] = parseFloat ret[1]
@@ -85,31 +91,31 @@ class AAStock
     else
       return [NaN, NaN]
       
-  pe: ->
-    ret = await @text await @page.$('div#tbPERatio > div:last-child')
+  pe: (page) ->
+    ret = await @text page, await page.$('div#tbPERatio > div:last-child')
     if ret != 'N/A'
       ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
       return parseFloat ret[1]
     else
       return NaN
 
-  pb: ->
-    ret = await @text await @page.$('div#tbPBRatio > div:last-child')
+  pb: (page) ->
+    ret = await @text page, await page.$('div#tbPBRatio > div:last-child')
     if ret != 'N/A'
       ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
       return parseFloat ret[1]
     else
       return NaN
 
-  dividend: ->
-    ret = await @text await @page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
+  dividend: (page) ->
+    ret = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
     if ret != 'N/A'
       ret = /[ ]*(\d+\.\d+%)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
       ret[1] = parseFloat ret[1]
       ret[2] = parseFloat ret[2]
     else
       ret = ['', NaN, NaN]
-    link = await @page.$('table#tbQuote tr:last-child a')
+    link = await page.$('table#tbQuote tr:last-child a')
     link = await link.getProperty 'href'
     link = await link.jsonValue()
     [
@@ -118,64 +124,72 @@ class AAStock
       link
     ]
 
-  change: ->
+  change: (page) ->
     await Promise.all [
       'table#tbQuote tr:nth-child(1) td:nth-child(2) > div > div:last-child > span'
       'table#tbQuote tr:nth-child(2) td:nth-child(1) > div > div:last-child > span'
     ].map (selector) =>
-      parseFloat await @text await @page.$(selector)
+      parseFloat await @text page, await page.$(selector)
     
-  date: ->
-    await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
+  date: (page) ->
+    await @text page, await page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 
-guid = require 'browserguid'
-{incoming, outgoing} = require('mqtt-level-store') './data'
+stockMqtt = ->
+  guid = require 'browserguid'
 
-class StockMqtt
-  topic: process.env.MQTTTOPIC.split('/')[0]
+  {incoming, outgoing} = require('mqtt-level-store') './data'
 
-  client: null
+  client = require 'mqtt'
+    .connect process.env.MQTTURL,
+      username: process.env.MQTTUSER
+      clientId: process.env.MQTTCLIENT || guid()
+      incomingStore: incoming
+      outgoingStore: outgoing
+      clean: false
+    .on 'connect', =>
+      client.subscribe "#{@topic}/#", qos: 2
+      console.debug 'mqtt connected'
+    .on 'message', (topic, msg) =>
+      if topic == client.topic
+        try
+          msg = JSON.parse msg.toString()
+          {action, data} = msg
+          switch action
+            when 'subscribe'
+              subscribe data
+            when 'unsubscribe'
+              unsubscribe data
+        catch err
+          console.error err
 
-  symbols: []
+  client.topic = process.env.MQTTTOPIC.split('/')[0]
 
-  patterns: []
+  client.symbols = []
 
-  constructor: ->
-    @client = require 'mqtt'
-      .connect process.env.MQTTURL,
-        username: process.env.MQTTUSER
-        clientId: process.env.MQTTCLIENT || guid()
-        incomingStore: incoming
-        outgoingStore: outgoing
-        clean: false
-      .on 'connect', =>
-        @client.subscribe "#{@topic}/#", qos: 2
-        console.debug 'mqtt connected'
-      .on 'message', (topic, msg) =>
-        if topic == @topic
-          try
-            msg = JSON.parse msg.toString()
-            {action, data} = msg
-            switch action
-              when 'subscribe'
-                @symbols = _.sortedUniq(@symbols
-                  .concat data
-                  .sort (a, b) ->
-                    a - b
-                )
-              when 'unsubscribe'
-                @symbols = @symbols
-                  .filter (code) ->
-                    code not in data
-            console.debug "update symbols: #{@symbols}"
-          catch err
-            console.error err
+  client.patterns = []
 
-mqtt = new StockMqtt()
-scheduler = require 'node-schedule'
+  subscribe = (list) ->
+    old = client.symbols
+    client.symbols = _.sortedUniq(client.symbols
+      .concat list
+      .sort (a, b) ->
+        a - b
+    )
+    client.emit 'symbols', client.symbols, old
+
+  unsubscribe = (list) ->
+    old = client.symbols
+    client.symbols = client.symbols
+       .filter (code) ->
+         code not in data
+    client.emit 'symbols', client.symbols, old
+  
+  client
 
 # schedule task to get detailed quote of the specified symbol list kept in mqtt
 class AAStockCron
+  mqtt: stockMqtt()
+
   cron:
     quote: process.env.QUOTECRON || '0 */30 9-16 * * 1-5'
     publish: process.env.PUBLISHCRON || '0 */5 * * * *'
@@ -187,25 +201,31 @@ class AAStockCron
       console.debug @cron
       console.debug @list
     return do =>
+      scheduler = require 'node-schedule'
       browser = await browser() 
       @aastock = await new AAStock browser: browser
       scheduler.scheduleJob @cron.quote, =>
-        @quote()
+        @quote @mqtt.symbols
       scheduler.scheduleJob @cron.publish, =>
         @publish()
+      @mqtt.on 'symbols', (symbols, old) =>
+        await @quote _.difference symbols, old
       @
 
-  quote: ->
-    console.debug "get detailed quote for #{mqtt.symbols} at #{new Date().toLocaleString()}"
-    await Promise.mapSeries mqtt.symbols, (symbol) =>
+  quote: (symbols) ->
+    console.debug "get detailed quote for #{@mqtt.symbols} at #{new Date().toLocaleString()}"
+    await Promise.mapSeries @mqtt.symbols, (symbol) =>
       try
         @add await @aastock.quote symbol
       catch err
         console.error "#{symbol}: #{err.toString()}"
 
-  publish: ->
-    for data in @list
-      mqtt.client.publish process.env.MQTTTOPIC, JSON.stringify data
+  publish: (data) ->
+    if data?
+      @mqtt.publish process.env.MQTTTOPIC, JSON.stringify data
+    else
+      for data in @list
+        @mqtt.publish process.env.MQTTTOPIC, JSON.stringify data
 
   add: (data) ->
     selected = _.find @list, (quote) ->
@@ -213,6 +233,7 @@ class AAStockCron
     if selected?
       _.extend selected, data
     else
+      @publish data
       @list.push data
       @list = _.sortBy @list, 'symbol'
 
@@ -220,4 +241,4 @@ class AAStockCron
     @list = _.filter @list, (quote) ->
       quote.symbol != symbol
 
-module.exports = {browser, StockMqtt, AAStock, AAStockCron}
+module.exports = {browser, stockMqtt, AAStock, AAStockCron}
