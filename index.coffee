@@ -19,55 +19,59 @@ browser = ->
 class AAStock
   constructor: ({@browser, @urlTemplate}) ->
     @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
-    return do =>
-      @page = await @browser.newPage()
-      await @page.setRequestInterception true
-      @page.on 'request', (req) =>
-        allowed = new URL @urlTemplate
-        curr = new URL req.url()
-        if req.resourceType() == 'image' or curr.hostname != allowed.hostname
-          req.abort()
-        else
-          req.continue()
-      @
+
+  newPage: ->
+    page = await @browser.newPage()
+    await page.setRequestInterception true
+    page.on 'request', (req) =>
+      allowed = new URL @urlTemplate
+      curr = new URL req.url()
+      if req.resourceType() == 'image' or curr.hostname != allowed.hostname
+        req.abort()
+      else
+        req.continue()
 
   quote: (symbol) ->
-    await @page.goto @url symbol, waitUntil: 'networkidle2'
-    await @page.$eval '#mainForm', (form) ->
-      form.submit()
-    await @page.waitForNavigation()
-    return
-      src: 'aastocks'
-      symbol: symbol
-      name: await @name()
-      quote:
-        curr: await @currPrice()
-        last: await @lastPrice()
-        lowHigh: await @lowHigh()
-        change: await @change()
-      details:
-        pe: await @pe()
-        pb: await @pb()
-        dividend: await @dividend()
-      lastUpdatedAt: await @date()
+    try
+      page = await @newPage()
+      await page.goto @url symbol, waitUntil: 'networkidle2'
+      await page.$eval '#mainForm', (form) ->
+        form.submit()
+      await page.waitForNavigation()
+      return
+        src: 'aastocks'
+        symbol: symbol
+        name: await @name page
+        quote:
+          curr: await @currPrice page
+          last: await @lastPrice page
+          lowHigh: await @lowHigh page
+          change: await @change page
+        details:
+          pe: await @pe page
+          pb: await @pb page
+          dividend: await @dividend page
+        lastUpdatedAt: await @date page
+    finally
+      await page.close()
 
   url: (symbol) ->
     _.template(@urlTemplate)
       symbol: pad symbol, 5
 
-  text: (el) ->
+  text: (page, el) ->
     content = (el) ->
       el.textContent
-    (await @page.evaluate content, el).trim()
+    (await page.evaluate content, el).trim()
  
-  name: ->
-    await @text await @page.$('#SQ_Name span')
+  name: (page) ->
+    await @text page, await page.$('#SQ_Name span')
 
-  currPrice: ->
-    parseFloat await @text await @page.$('#labelLast span')
+  currPrice: (page) ->
+    parseFloat await @text page, await page.$('#labelLast span')
 
-  lastPrice: ->
-    ret = await @text await @page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
+  lastPrice: (page) ->
+    ret = await @text page, await page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
     if ret != 'N/A'
       ret = /(.*) \/ (.*)/.exec ret
       ret[2] = ret[2].trim()
@@ -75,8 +79,8 @@ class AAStock
     else
       return NaN
     
-  lowHigh: ->
-    ret = await @text await @page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
+  lowHigh: (page) ->
+    ret = await @text page, await page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
     if ret != 'N/A'
       ret = /(\d+\.\d+) \- (\d+\.\d+)/.exec ret
       ret[1] = parseFloat ret[1]
@@ -85,31 +89,31 @@ class AAStock
     else
       return [NaN, NaN]
       
-  pe: ->
-    ret = await @text await @page.$('div#tbPERatio > div:last-child')
+  pe: (page) ->
+    ret = await @text page, await page.$('div#tbPERatio > div:last-child')
     if ret != 'N/A'
       ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
       return parseFloat ret[1]
     else
       return NaN
 
-  pb: ->
-    ret = await @text await @page.$('div#tbPBRatio > div:last-child')
+  pb: (page) ->
+    ret = await @text page, await page.$('div#tbPBRatio > div:last-child')
     if ret != 'N/A'
       ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
       return parseFloat ret[1]
     else
       return NaN
 
-  dividend: ->
-    ret = await @text await @page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
+  dividend: (page) ->
+    ret = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
     if ret != 'N/A'
       ret = /[ ]*(\d+\.\d+%)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
       ret[1] = parseFloat ret[1]
       ret[2] = parseFloat ret[2]
     else
       ret = ['', NaN, NaN]
-    link = await @page.$('table#tbQuote tr:last-child a')
+    link = await page.$('table#tbQuote tr:last-child a')
     link = await link.getProperty 'href'
     link = await link.jsonValue()
     [
@@ -118,15 +122,15 @@ class AAStock
       link
     ]
 
-  change: ->
+  change: (page) ->
     await Promise.all [
       'table#tbQuote tr:nth-child(1) td:nth-child(2) > div > div:last-child > span'
       'table#tbQuote tr:nth-child(2) td:nth-child(1) > div > div:last-child > span'
     ].map (selector) =>
-      parseFloat await @text await @page.$(selector)
+      parseFloat await @text page, await page.$(selector)
     
-  date: ->
-    await @text await @page.$('div#cp_pLeft > div:nth-child(3) > span > span')
+  date: (page) ->
+    await @text page, await page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 
 stockMqtt = ->
   guid = require 'browserguid'
@@ -204,7 +208,6 @@ class AAStockCron
         @publish()
       @mqtt.on 'symbols', (symbols, old) =>
         await @quote _.difference symbols, old
-        await @publish()
       @
 
   quote: (symbols) ->
@@ -215,9 +218,12 @@ class AAStockCron
       catch err
         console.error "#{symbol}: #{err.toString()}"
 
-  publish: ->
-    for data in @list
+  publish: (data) ->
+    if data?
       @mqtt.publish process.env.MQTTTOPIC, JSON.stringify data
+    else
+      for data in @list
+        @mqtt.publish process.env.MQTTTOPIC, JSON.stringify data
 
   add: (data) ->
     selected = _.find @list, (quote) ->
@@ -225,6 +231,7 @@ class AAStockCron
     if selected?
       _.extend selected, data
     else
+      @publish data
       @list.push data
       @list = _.sortBy @list, 'symbol'
 
