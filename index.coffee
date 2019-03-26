@@ -10,6 +10,7 @@ browser = ->
       '--disable-setuid-sandbox'
       '--disable-dev-shm-usage'
     ]
+    handleSIGTERM: false
   if process.env.DEBUG? and process.env.DEBUG == 'true'
     _.extend opts,
       headless: false
@@ -22,6 +23,7 @@ class AAStock
 
   newPage: ->
     page = await @browser.newPage()
+    await page.setUserAgent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3723.0 Safari/537.36'
     await page.setRequestInterception true
     page.on 'request', (req) =>
       allowed = new URL @urlTemplate
