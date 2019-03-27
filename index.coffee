@@ -70,66 +70,103 @@ class AAStock
     await @text page, await page.$('#SQ_Name span')
 
   currPrice: (page) ->
-    parseFloat await @text page, await page.$('#labelLast span')
+    try
+      parseFloat await @text page, await page.$('#labelLast span')
+    catch err
+      console.error 'currPrice'
+      throw err
 
   lastPrice: (page) ->
-    ret = await @text page, await page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
-    if ret != 'N/A'
-      ret = /(.*) \/ (.*)/.exec ret
-      ret[2] = ret[2].trim()
-      return if ret[2] == 'N/A' then NaN else parseFloat ret[2]
-    else
-      return NaN
+    try
+      ret = await @text page, await page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
+      if ret != 'N/A'
+        ret = /(.*) \/ (.*)/.exec ret
+        ret[2] = ret[2].trim()
+        return if ret[2] == 'N/A' then NaN else parseFloat ret[2]
+      else
+        return NaN
+    catch err
+      console.error 'lastPrice'
+      throw err
     
   lowHigh: (page) ->
-    ret = await @text page, await page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
-    if ret != 'N/A'
-      ret = /(\d+\.\d+) \- (\d+\.\d+)/.exec ret
-      ret[1] = parseFloat ret[1]
-      ret[2] = parseFloat ret[2]
-      return ret[1..2]
-    else
-      return [NaN, NaN]
+    try
+      ret = await @text page, await page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
+      if ret != 'N/A'
+        ret = /(\d+\.\d+) \- (\d+\.\d+)/.exec ret
+        ret[1] = parseFloat ret[1]
+        ret[2] = parseFloat ret[2]
+        return ret[1..2]
+      else
+        return [NaN, NaN]
+    catch err
+      console.error 'lowHigh'
+      throw err
       
   pe: (page) ->
-    ret = await @text page, await page.$('div#tbPERatio > div:last-child')
-    if ret != 'N/A'
-      ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
-      return parseFloat ret[1]
-    else
-      return NaN
+    try
+      ret = await @text page, await page.$('div#tbPERatio > div:last-child')
+      if ret != 'N/A'
+        ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
+        return parseFloat ret[1]
+      else
+        return NaN
+    catch err
+      console.error 'pe'
+      throw err
 
   pb: (page) ->
-    ret = await @text page, await page.$('div#tbPBRatio > div:last-child')
-    if ret != 'N/A'
-      ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
-      return parseFloat ret[1]
-    else
-      return NaN
+    try
+      ret = await @text page, await page.$('div#tbPBRatio > div:last-child')
+      if ret != 'N/A'
+        ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
+        return parseFloat ret[1]
+      else
+        return NaN
+    catch err
+      console.error 'pb'
+      throw err
 
   dividend: (page) ->
-    ret = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
-    if ret != 'N/A'
-      ret = /[ ]*(\d+\.\d+%)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
-      ret[1] = parseFloat ret[1]
-      ret[2] = parseFloat ret[2]
-    else
-      ret = ['', NaN, NaN]
-    link = await page.$('table#tbQuote tr:last-child a')
-    link = await link.getProperty 'href'
-    link = await link.jsonValue()
-    [
-      ret[2]
-      ret[1]
-      link
-    ]
+    try
+      ret = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
+      if ret != 'N/A'
+        ret = /[ ]*(\d+\.\d+%)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
+        ret[1] = parseFloat ret[1]
+        ret[2] = parseFloat ret[2]
+      else
+        ret = ['', NaN, NaN]
+
+      percent = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(1) > div > div:last-child')
+      if percent != 'N/A'
+        percent = /(\d+\.\d+%)[ ]*\/[ ]*(\d+\.\d+%)/.exec percent
+        percent[1] = parseFloat percent[1]
+        percent[2] = parseFloat percent[2]
+      else
+        percent = ['', NaN, NaN]
+
+      link = await page.$('table#tbQuote tr:last-child a')
+      link = await link.getProperty 'href'
+      link = await link.jsonValue()
+      [
+        ret[2]
+        percent[1]
+        link
+      ]
+    catch err
+      console.error 'dividend'
+      throw err
 
   change: (page) ->
-    await Promise.all [
-      'table#tbQuote tr:nth-child(1) td:nth-child(2) > div > div:last-child > span'
-      'table#tbQuote tr:nth-child(2) td:nth-child(1) > div > div:last-child > span'
-    ].map (selector) =>
-      parseFloat await @text page, await page.$(selector)
+    try
+      await Promise.all [
+        'table#tbQuote tr:nth-child(1) td:nth-child(2) > div > div:last-child > span'
+        'table#tbQuote tr:nth-child(2) td:nth-child(1) > div > div:last-child > span'
+      ].map (selector) =>
+        parseFloat await @text page, await page.$(selector)
+    catch err
+      console.error 'change'
+      throw err
     
   date: (page) ->
     await @text page, await page.$('div#cp_pLeft > div:nth-child(3) > span > span')
@@ -203,7 +240,7 @@ class AAStockCron
     return do =>
       scheduler = require 'node-schedule'
       browser = await browser() 
-      @aastock = await new AAStock browser: browser
+      @aastock = new AAStock browser: browser
       scheduler.scheduleJob @cron.quote, =>
         @quote @mqtt.symbols
       scheduler.scheduleJob @cron.publish, =>
