@@ -115,12 +115,21 @@ class AAStock
       ret[2] = parseFloat ret[2]
     else
       ret = ['', NaN, NaN]
+
+    percent = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
+    if percent != 'N/A'
+      percent = /[ ]*(\d+\.\d+%)[ ]*\/[ ]*(\d+\.\d%)/.exec percent
+      percent[1] = parseFloat percent[1]
+      percent[2] = parseFloat percent[2]
+    else
+      percent = ['', NaN, NaN]
+
     link = await page.$('table#tbQuote tr:last-child a')
     link = await link.getProperty 'href'
     link = await link.jsonValue()
     [
       ret[2]
-      ret[1]
+      percent[1]
       link
     ]
 
