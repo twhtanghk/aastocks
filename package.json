@@ -16,7 +16,7 @@
     "url": "https://github.com/twhtanghk/aastocks/issues"
   },
   "homepage": "https://github.com/twhtanghk/aastocks#readme",
-  "devDependencies": {
+  "dependencies": {
     "bluebird": "^3.5.3",
     "browserguid": "https://github.com/twhtanghk/browserGuid",
     "coffeescript": "^2.3.2",
