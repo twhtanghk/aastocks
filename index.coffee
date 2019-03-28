@@ -246,12 +246,16 @@ class AAStockCron
       scheduler.scheduleJob @cron.publish, =>
         @publish()
       @mqtt.on 'symbols', (symbols, old) =>
-        await @quote _.difference symbols, old
+        cached = _.filter @list, (data) ->
+          data.symbol in _.intersection(symbols, old)
+        for i in cached
+          @publish i
+        await @quote _.difference(symbols, old)
       @
 
   quote: (symbols) ->
-    console.debug "get detailed quote for #{@mqtt.symbols} at #{new Date().toLocaleString()}"
-    await Promise.mapSeries @mqtt.symbols, (symbol) =>
+    console.debug "get detailed quote for #{symbols} at #{new Date().toLocaleString()}"
+    await Promise.mapSeries symbols, (symbol) =>
       try
         @add await @aastock.quote symbol
       catch err
