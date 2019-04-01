@@ -111,7 +111,8 @@ class AAStock
     try
       ret = await @text page, await page.$('div#tbPERatio > div:last-child')
       if ret != 'N/A'
-        ret = (new RegExp "[ ]*(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})").exec ret
+        ret = new RegExp "[ ]*(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})"
+          .exec ret
         return if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
       else
         return NaN
@@ -123,8 +124,9 @@ class AAStock
     try
       ret = await @text page, await page.$('div#tbPBRatio > div:last-child')
       if ret != 'N/A'
-        ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
-        return parseFloat ret[1]
+        ret = new RegExp "[ ]*(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})"
+          .exec ret
+        return if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
       else
         return NaN
     catch err
