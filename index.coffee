@@ -21,6 +21,10 @@ class AAStock
   constructor: ({@browser, @urlTemplate}) ->
     @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
 
+  @NA: 'N/A'
+
+  @float: "#{@NA}|\\d+\.\\d+"
+
   newPage: ->
     page = await @browser.newPage()
     await page.setUserAgent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3723.0 Safari/537.36'
@@ -107,8 +111,8 @@ class AAStock
     try
       ret = await @text page, await page.$('div#tbPERatio > div:last-child')
       if ret != 'N/A'
-        ret = /[ ]*(\d+\.\d+)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
-        return parseFloat ret[1]
+        ret = (new RegExp "[ ]*(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})").exec ret
+        return if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
       else
         return NaN
     catch err
