@@ -57,6 +57,7 @@ class AAStock
           pe: await @pe page
           pb: await @pb page
           dividend: await @dividend page
+          marketValue: await @marketValue page
         lastUpdatedAt: await @date page
     finally
       await page.close()
@@ -72,6 +73,14 @@ class AAStock
  
   name: (page) ->
     await @text page, await page.$('#SQ_Name span')
+
+  marketValue: (page) ->
+    try
+      ret = await @text page, await page.$('table#tbQuote tr:nth-child(8) td:nth-child(1) > div > div:last-child')
+      return parseFloat ret
+    catch err
+      console.error 'marketValue'
+      throw err
 
   currPrice: (page) ->
     try
