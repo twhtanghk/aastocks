@@ -240,8 +240,6 @@ stockMqtt = ->
 
 # schedule task to get detailed quote of the specified symbol list kept in mqtt
 class AAStockCron
-  mqtt: stockMqtt()
-
   cron:
     quote: process.env.QUOTECRON || '0 */30 9-16 * * 1-5'
     publish: process.env.PUBLISHCRON || '0 */5 * * * *'
@@ -249,6 +247,7 @@ class AAStockCron
   list: []
 
   constructor: ->
+    @mqtt = stockMqtt()
     process.on 'SIGTERM', =>
       console.debug @cron
       console.debug @list
