@@ -23,7 +23,9 @@ class AAStock
 
   @NA: 'N/A'
 
-  @float: "#{@NA}|\\d+\.\\d+"
+  @float: "#{@NA}|\\d+\.\\d+%*"
+
+  @float2: "(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})"
 
   newPage: ->
     page = await @browser.newPage()
@@ -146,9 +148,10 @@ class AAStock
     try
       ret = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
       if ret != 'N/A'
-        ret = /[ ]*(\d+\.\d+%)[ ]*\/[ ]*(\d+\.\d+)/.exec ret
-        ret[1] = parseFloat ret[1]
-        ret[2] = parseFloat ret[2]
+        ret = new RegExp AAStock.float2
+          .exec ret
+        ret[1] = if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
+        ret[2] = if ret[2] == AAStock.NA then NaN else parseFloat ret[2]
       else
         ret = ['', NaN, NaN]
 
