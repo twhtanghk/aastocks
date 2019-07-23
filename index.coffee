@@ -201,7 +201,7 @@ stockMqtt = ->
       incomingStore: incoming
       outgoingStore: outgoing
       clean: false
-    .on 'connect', =>
+    .on 'connect', ->
       client.subscribe "#{@topic}/#", qos: 2
       console.debug 'mqtt connected'
     .on 'message', (topic, msg) =>
