@@ -43,9 +43,11 @@ class AAStock
     try
       page = await @newPage()
       await page.goto @url symbol, waitUntil: 'networkidle2'
-      await page.$eval '#mainForm', (form) ->
-        form.submit()
-      await Promise.delay 1000
+      await Promise.all [
+        page.$eval '#mainForm', (form) ->
+          form.submit()
+        page.waitForNavigation waitUntil: 'load'
+      ]
       return
         src: 'aastocks'
         symbol: symbol
