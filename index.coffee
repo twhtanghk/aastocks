@@ -27,6 +27,16 @@ class AAStock
 
   @float2: "(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})"
 
+  @pair: (ret) ->
+    if ret != 'N/A'
+      ret = new RegExp AAStock.float2
+        .exec ret
+      ret[1] = if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
+      ret[2] = if ret[2] == AAStock.NA then NaN else parseFloat ret[2]
+    else
+      ret = ['', NaN, NaN]
+    return ret
+
   newPage: ->
     page = await @browser.newPage()
     await page.setUserAgent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3723.0 Safari/537.36'
@@ -149,21 +159,10 @@ class AAStock
   dividend: (page) ->
     try
       ret = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
-      if ret != 'N/A'
-        ret = new RegExp AAStock.float2
-          .exec ret
-        ret[1] = if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
-        ret[2] = if ret[2] == AAStock.NA then NaN else parseFloat ret[2]
-      else
-        ret = ['', NaN, NaN]
+      ret = AAStock.pair ret
 
       percent = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(1) > div > div:last-child')
-      if percent != 'N/A'
-        percent = /(\d+\.\d+%)[ ]*\/[ ]*(\d+\.\d+%)/.exec percent
-        percent[1] = parseFloat percent[1]
-        percent[2] = parseFloat percent[2]
-      else
-        percent = ['', NaN, NaN]
+      percent = AAStock.pair percent
 
       link = await page.$('table#tbQuote tr:last-child a')
       link = await link.getProperty 'href'
