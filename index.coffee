@@ -193,14 +193,10 @@ class AAStock
 stockMqtt = ->
   guid = require 'browserguid'
 
-  {incoming, outgoing} = require('mqtt-level-store') './data'
-
   client = require 'mqtt'
     .connect process.env.MQTTURL,
       username: process.env.MQTTUSER
       clientId: process.env.MQTTCLIENT || guid()
-      incomingStore: incoming
-      outgoingStore: outgoing
       clean: false
     .on 'connect', ->
       client.subscribe "#{@topic}/#", qos: 2
