@@ -167,9 +167,13 @@ class AAStock
       link = await page.$('table#tbQuote tr:last-child a')
       link = await link.getProperty 'href'
       link = await link.jsonValue()
+
+      exDate = await @text page, await page.$('table#tbQuote tr:nth-child(10) td > div:last-child > div:first-child > div:nth-child(2)')
+
       [
         ret[2]
         percent[1]
+        exDate
         link
       ]
     catch err
