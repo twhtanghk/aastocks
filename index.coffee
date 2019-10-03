@@ -173,8 +173,8 @@ class AAStock
       [
         ret[2]
         percent[1]
-        exDate
         link
+        exDate
       ]
     catch err
       console.error 'dividend'
