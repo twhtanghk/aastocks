@@ -173,7 +173,7 @@ class AAStock
       [
         ret[2]
         percent[1]
-        if exDate == '' then null else new Date exDate
+        exDate
         link
       ]
     catch err
