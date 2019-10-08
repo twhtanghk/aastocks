@@ -58,6 +58,7 @@ class AAStock
           form.submit()
         page.waitForNavigation waitUntil: 'load'
       ]
+      [pb, nav] = await @pb page
       return
         src: 'aastocks'
         symbol: symbol
@@ -69,7 +70,8 @@ class AAStock
           change: await @change page
         details:
           pe: await @pe page
-          pb: await @pb page
+          pb: pb
+          nav: nav
           dividend: await @dividend page
           marketValue: await @marketValue page
         lastUpdatedAt: await @date page
@@ -146,12 +148,8 @@ class AAStock
   pb: (page) ->
     try
       ret = await @text page, await page.$('div#tbPBRatio > div:last-child')
-      if ret != 'N/A'
-        ret = new RegExp "[ ]*(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})"
-          .exec ret
-        return if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
-      else
-        return NaN
+      ret = AAStock.pair ret
+      return ret[1..]
     catch err
       console.error 'pb'
       throw err
