@@ -17,73 +17,53 @@ browser = ->
       devtools: true
   await puppeteer.launch opts
 
+# set page agent and skip image request
+newPage = (browser, url) ->
+  page = await browser.newPage()
+  await page.setUserAgent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3723.0 Safari/537.36'
+  await page.setRequestInterception true
+  page.on 'request', (req) =>
+    allowed = new URL url
+    curr = new URL req.url()
+    if req.resourceType() == 'image' or curr.hostname != allowed.hostname
+      req.abort()
+    else
+      req.continue()
+
 class HSI
   constructor: ({@browser}) ->
     return
-
-  newPage: ->
-    page = await @browser.newPage()
-    await page.setUserAgent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3723.0 Safari/537.36'
-    await page.setRequestInterception true
-    page.on 'request', (req) =>
-      allowed = new URL process.env.HSIURL
-      curr = new URL req.url()
-      if req.resourceType() == 'image' or curr.hostname != allowed.hostname
-        req.abort()
-      else
-        req.continue()
 
   text: (page, el) ->
     content = (el) ->
       el.textContent
     (await page.evaluate content, el).trim()
 
-  name: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(1) div:nth-child(1) div span:nth-child(1)'
-
   symbol: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(1) div:nth-child(2) div span:nth-child(1)'
+    ret =(await @text page, await row.$ 'a')
+      .match /([0-9]+):HK/
+    ret[1]
+      .padStart(4, '0')
 
   price: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(3)'
+    parseFloat await @text page, await row.$ 'div.security-summary__head-row-details div.security-summary__price'
 
   change: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(4) span'
+    parseFloat await @text page, await row.$ 'div.security-summary__head-row-details div.security-summary__price-change'
 
   changePercent: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(5) span'
+    await @text page, await row.$ 'div.security-summary__head-row-details div.security-summary__percent-change'
 
   volume: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(6)'
-
-  turnover: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(7)'
-
-  pe: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(8)'
-
-  pb: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(9)'
-
-  yield: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(10)'
-
-  marketCap: (page, row) ->
-    await @text page, await row.$ 'td:nth-child(11)'
+    await @text page, await row.$ 'div.security-summary__head-row-details div.security-summary__volume'
 
   stock: (page, row) ->
     cols = [
-      'name'
       'symbol'
       'price'
       'change'
       'changePercent'
       'volume'
-      'turnover'
-      'pe'
-      'pb'
-      'yield'
-      'marketCap'
     ]
     ret = {}
     for i in cols
@@ -92,10 +72,10 @@ class HSI
 
   get: ->
     try
-      page = await @newPage()
-      await page.goto process.env.HSIURL, waitUntil: 'load'
+      page = await newPage @browser, process.env.HSIURL
+      await page.goto process.env.HSIURL, waitUntil: 'networkidle2'
       ret = []
-      rows = await page.$$ 'table#tbTS tbody tr'
+      rows = await page.$$ 'div.index-members div.index-members div.security-summary__head-row'
       for row in rows
         ret.push await @stock page, row
       return ret
@@ -122,21 +102,9 @@ class AAStock
       ret = ['', NaN, NaN]
     return ret
 
-  newPage: ->
-    page = await @browser.newPage()
-    await page.setUserAgent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3723.0 Safari/537.36'
-    await page.setRequestInterception true
-    page.on 'request', (req) =>
-      allowed = new URL @urlTemplate
-      curr = new URL req.url()
-      if req.resourceType() == 'image' or curr.hostname != allowed.hostname
-        req.abort()
-      else
-        req.continue()
-
   quote: (symbol) ->
     try
-      page = await @newPage()
+      page = await newPage @browser, @urlTemplate
       await page.goto @url symbol, waitUntil: 'networkidle2'
       await Promise.all [
         page.$eval '#mainForm', (form) ->
@@ -330,6 +298,7 @@ class AAStockCron
   cron:
     quote: process.env.QUOTECRON || '0 */30 9-16 * * 1-5'
     publish: process.env.PUBLISHCRON || '0 */5 * * * *'
+    hsi: process.env.HSICRON || '0 0 17 * * 1-5'
 
   list: []
 
@@ -342,10 +311,13 @@ class AAStockCron
       scheduler = require 'node-schedule'
       browser = await browser() 
       @aastock = new AAStock browser: browser
+      @hsi = new HSI browser: browser
       scheduler.scheduleJob @cron.quote, =>
         @quote @mqtt.symbols
       scheduler.scheduleJob @cron.publish, =>
         @publish()
+      scheduler.scheduleJob @cron.hsi, =>
+        @getHsi()
       @mqtt.on 'symbols', (symbols, old) =>
         cached = _.filter @list, (data) ->
           data.symbol in _.intersection(symbols, old)
@@ -369,6 +341,10 @@ class AAStockCron
       for data in @list
         @mqtt.publish process.env.MQTTTOPIC, JSON.stringify data
 
+  getHsi: ->
+    for i in await @hsi.get()
+      @mqtt.publish process.env.HSITOPIC, JSON.stringify i
+    
   add: (data) ->
     selected = _.find @list, (quote) ->
       quote.symbol == data.symbol
