@@ -17,6 +17,91 @@ browser = ->
       devtools: true
   await puppeteer.launch opts
 
+class HSI
+  constructor: ({@browser}) ->
+    return
+
+  newPage: ->
+    page = await @browser.newPage()
+    await page.setUserAgent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3723.0 Safari/537.36'
+    await page.setRequestInterception true
+    page.on 'request', (req) =>
+      allowed = new URL process.env.HSIURL
+      curr = new URL req.url()
+      if req.resourceType() == 'image' or curr.hostname != allowed.hostname
+        req.abort()
+      else
+        req.continue()
+
+  text: (page, el) ->
+    content = (el) ->
+      el.textContent
+    (await page.evaluate content, el).trim()
+
+  name: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(1) div:nth-child(1) div span:nth-child(1)'
+
+  symbol: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(1) div:nth-child(2) div span:nth-child(1)'
+
+  price: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(3)'
+
+  change: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(4) span'
+
+  changePercent: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(5) span'
+
+  volume: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(6)'
+
+  turnover: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(7)'
+
+  pe: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(8)'
+
+  pb: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(9)'
+
+  yield: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(10)'
+
+  marketCap: (page, row) ->
+    await @text page, await row.$ 'td:nth-child(11)'
+
+  stock: (page, row) ->
+    cols = [
+      'name'
+      'symbol'
+      'price'
+      'change'
+      'changePercent'
+      'volume'
+      'turnover'
+      'pe'
+      'pb'
+      'yield'
+      'marketCap'
+    ]
+    ret = {}
+    for i in cols
+      ret[i] = await @[i](page, row)
+    return ret
+
+  get: ->
+    try
+      page = await @newPage()
+      await page.goto process.env.HSIURL, waitUntil: 'load'
+      ret = []
+      rows = await page.$$ 'table#tbTS tbody tr'
+      for row in rows
+        ret.push await @stock page, row
+      return ret
+    finally
+      page.close()
+
 class AAStock
   constructor: ({@browser, @urlTemplate}) ->
     @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
@@ -298,4 +383,4 @@ class AAStockCron
     @list = _.filter @list, (quote) ->
       quote.symbol != symbol
 
-module.exports = {browser, stockMqtt, AAStock, AAStockCron}
+module.exports = {browser, HSI, stockMqtt, AAStock, AAStockCron}
