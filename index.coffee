@@ -1,7 +1,6 @@
 _ = require 'lodash'
 pad = require('leading-zeroes').default
 puppeteer = require 'puppeteer'
-scrollPageToBottom = require 'puppeteer-autoscroll-down'
 Promise = require 'bluebird'
 
 browser = ->
@@ -22,14 +21,7 @@ browser = ->
 newPage = (browser, url) ->
   page = await browser.newPage()
   await page.setUserAgent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3723.0 Safari/537.36'
-  await page.setRequestInterception true
-  page.on 'request', (req) =>
-    allowed = new URL url
-    curr = new URL req.url()
-    if req.resourceType() == 'image' or curr.hostname != allowed.hostname
-      req.abort()
-    else
-      req.continue()
+  page
 
 text = (page, el) ->
   content = (el) ->
@@ -106,10 +98,8 @@ class Peers
     for group, peerUrl of urlList
       sector = group.match(Peers.pattern)[1]
       await page.goto peerUrl, waitUntil: 'networkidle2'
-      await Promise.all [
-        scrollPageToBottom page
-        page.waitForNavigation waitUntil: 'load'
-      ]
+      await page.evaluate ->
+        window.scrollBy 0, document.body.scrollHeight
       ret = []
       rows = await page.$$ 'table#tbTS tbody tr'
       for row in rows
