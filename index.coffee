@@ -57,7 +57,6 @@ class Peers
   url: ->
     ret = _.pickBy process.env, (v, k) ->
       Peers.pattern.test k
-    console.log ret
     ret
 
   symbol: (page, row) ->
@@ -108,8 +107,9 @@ class Peers
       ret = []
       rows = await page.$$ 'table#tbTS tbody tr'
       for row in rows
-        ret.push await @stock page, row
+        ret = ret.concat await @stock page, row
       page.close()
+    ret
   
 class HSI
   constructor: ({@browser}) ->
