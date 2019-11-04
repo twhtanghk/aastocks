@@ -1,6 +1,7 @@
 _ = require 'lodash'
 pad = require('leading-zeroes').default
 puppeteer = require 'puppeteer'
+scrollPageToBottom = require 'puppeteer-autoscroll-down'
 Promise = require 'bluebird'
 
 browser = ->
@@ -36,7 +37,7 @@ text = (page, el) ->
   (await page.evaluate content, el).trim()
 
 class Peers
-  @pattern: /[a-zA-Z]*PEERS/
+  @pattern: /([a-zA-Z]*)PEERS/
 
   @cols: [
     'symbol'
@@ -100,15 +101,20 @@ class Peers
 
   get: ->
     ret = []
-    for group, peerUrl of @url()
-      peer = group.match(Peers.pattern)[1]
-      page = await newPage @browser, peerUrl
+    urlList = @url()
+    page = await newPage @browser, _.values(urlList)[0]
+    for group, peerUrl of urlList
+      sector = group.match(Peers.pattern)[1]
       await page.goto peerUrl, waitUntil: 'networkidle2'
+      await Promise.all [
+        scrollPageToBottom page
+        page.waitForNavigation waitUntil: 'load'
+      ]
       ret = []
       rows = await page.$$ 'table#tbTS tbody tr'
       for row in rows
-        ret = ret.concat await @stock page, row
-      page.close()
+        ret = ret.concat _.extend sector: sector, await @stock page, row
+    page.close()
     ret
   
 class HSI
