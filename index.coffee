@@ -113,7 +113,6 @@ class Peers
           break
         else
           last = curr
-      ret = []
       for row in await @rows page
         ret = ret.concat _.extend sector: sector, await @stock page, row
     page.close()
