@@ -347,7 +347,7 @@ class AAStockCron
         @quote @mqtt.symbols
       scheduler.scheduleJob @cron.publish, =>
         @publish()
-      scheduler.scheduleJob @cron.peers, =>
+      scheduler.scheduleJob @cron.sector, =>
         @getSector()
       @mqtt.on 'symbols', (symbols, old) =>
         cached = _.filter @list, (data) ->
