@@ -56,7 +56,7 @@ class Peers
     ret = (await text page, await row.$ 'a')
       .match /([0-9]+).HK/
     ret[1]
-      .padStart(4, '0')
+      .padStart(4, '0')[-4..]
 
   price: (page, row) ->
     parseFloat await text page, await row.$ 'td:nth-child(3)'
@@ -91,6 +91,12 @@ class Peers
       ret[i] = await @[i](page, row)
     return ret
 
+  rows: (page) ->
+    await page.$$ 'table#tbTS tbody tr'
+
+  length: (page) ->
+    (await @rows page).length
+
   get: ->
     ret = []
     urlList = @url()
@@ -98,11 +104,17 @@ class Peers
     for group, peerUrl of urlList
       sector = group.match(Peers.pattern)[1]
       await page.goto peerUrl, waitUntil: 'networkidle2'
-      await page.evaluate ->
-        window.scrollBy 0, document.body.scrollHeight
+      last = await @length page
+      while true
+        await page.evaluate ->
+          window.scrollBy 0, document.body.scrollHeight
+        curr = await @length page
+        if curr == last
+          break
+        else
+          last = curr
       ret = []
-      rows = await page.$$ 'table#tbTS tbody tr'
-      for row in rows
+      for row in await @rows page
         ret = ret.concat _.extend sector: sector, await @stock page, row
     page.close()
     ret
