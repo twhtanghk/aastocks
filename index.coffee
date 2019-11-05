@@ -21,67 +21,103 @@ browser = ->
 newPage = (browser, url) ->
   page = await browser.newPage()
   await page.setUserAgent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3723.0 Safari/537.36'
-  await page.setRequestInterception true
-  page.on 'request', (req) =>
-    allowed = new URL url
-    curr = new URL req.url()
-    if req.resourceType() == 'image' or curr.hostname != allowed.hostname
-      req.abort()
-    else
-      req.continue()
+  page
 
-class HSI
+text = (page, el) ->
+  content = (el) ->
+    el.textContent
+  (await page.evaluate content, el).trim()
+
+class Peers
+  @pattern: /([a-zA-Z]*)PEERS/
+
+  @cols: [
+    'symbol'
+    'price'
+    'change'
+    'changePercent'
+    'volume'
+    'turnover'
+    'pe'
+    'pb'
+    'yield'
+    'marketCap'
+  ]
+
   constructor: ({@browser}) ->
     return
 
-  text: (page, el) ->
-    content = (el) ->
-      el.textContent
-    (await page.evaluate content, el).trim()
+  url: ->
+    ret = _.pickBy process.env, (v, k) ->
+      Peers.pattern.test k
+    ret
 
   symbol: (page, row) ->
-    ret =(await @text page, await row.$ 'a')
-      .match /([0-9]+):HK/
+    ret = (await text page, await row.$ 'a')
+      .match /([0-9]+).HK/
     ret[1]
-      .padStart(4, '0')
+      .padStart(4, '0')[-4..]
 
   price: (page, row) ->
-    parseFloat await @text page, await row.$ 'div.security-summary__head-row-details div.security-summary__price'
+    parseFloat await text page, await row.$ 'td:nth-child(3)'
 
   change: (page, row) ->
-    parseFloat await @text page, await row.$ 'div.security-summary__head-row-details div.security-summary__price-change'
+    parseFloat await text page, await row.$ 'td:nth-child(4) span'
 
   changePercent: (page, row) ->
-    await @text page, await row.$ 'div.security-summary__head-row-details div.security-summary__percent-change'
-
+    await text page, await row.$ 'td:nth-child(5) span'
+ 
   volume: (page, row) ->
-    await @text page, await row.$ 'div.security-summary__head-row-details div.security-summary__volume'
+    parseFloat await text page, await row.$ 'td:nth-child(6)'
+
+  turnover: (page, row) ->
+    parseFloat await text page, await row.$ 'td:nth-child(7)'
+
+  pe: (page, row) ->
+    parseFloat await text page, await row.$ 'td:nth-child(8)'
+
+  pb: (page, row) ->
+    parseFloat await text page, await row.$ 'td:nth-child(9)'
+
+  yield: (page, row) ->
+    parseFloat await text page, await row.$ 'td:nth-child(10)'
+
+  marketCap: (page, row) ->
+    await text page, await row.$ 'td:nth-child(11)'
 
   stock: (page, row) ->
-    cols = [
-      'symbol'
-      'price'
-      'change'
-      'changePercent'
-      'volume'
-    ]
     ret = {}
-    for i in cols
+    for i in Peers.cols
       ret[i] = await @[i](page, row)
     return ret
 
-  get: ->
-    try
-      page = await newPage @browser, process.env.HSIURL
-      await page.goto process.env.HSIURL, waitUntil: 'networkidle2'
-      ret = []
-      rows = await page.$$ 'div.index-members div.index-members div.security-summary__head-row'
-      for row in rows
-        ret.push await @stock page, row
-      return ret
-    finally
-      page.close()
+  rows: (page) ->
+    await page.$$ 'table#tbTS tbody tr'
 
+  length: (page) ->
+    (await @rows page).length
+
+  get: ->
+    ret = []
+    urlList = @url()
+    page = await newPage @browser, _.values(urlList)[0]
+    for group, peerUrl of urlList
+      sector = group.match(Peers.pattern)[1]
+      await page.goto peerUrl, waitUntil: 'networkidle2'
+      last = await @length page
+      while true
+        await page.evaluate ->
+          window.scrollBy 0, document.body.scrollHeight
+        curr = await @length page
+        if curr == last
+          break
+        else
+          last = curr
+      for row in await @rows page
+        ret = ret.concat _.extend sector: sector, await @stock page, row
+    page.close()
+    ret
+  
 class AAStock
   constructor: ({@browser, @urlTemplate}) ->
     @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
@@ -135,17 +171,12 @@ class AAStock
     _.template(@urlTemplate)
       symbol: pad symbol, 5
 
-  text: (page, el) ->
-    content = (el) ->
-      el.textContent
-    (await page.evaluate content, el).trim()
- 
   name: (page) ->
-    await @text page, await page.$('#SQ_Name span')
+    await text page, await page.$('#SQ_Name span')
 
   marketValue: (page) ->
     try
-      ret = await @text page, await page.$('table#tbQuote tr:nth-child(8) td:nth-child(1) > div > div:last-child')
+      ret = await text page, await page.$('table#tbQuote tr:nth-child(8) td:nth-child(1) > div > div:last-child')
       return parseFloat ret
     catch err
       console.error 'marketValue'
@@ -153,14 +184,14 @@ class AAStock
 
   currPrice: (page) ->
     try
-      parseFloat await @text page, await page.$('#labelLast span')
+      parseFloat await text page, await page.$('#labelLast span')
     catch err
       console.error 'currPrice'
       throw err
 
   lastPrice: (page) ->
     try
-      ret = await @text page, await page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
+      ret = await text page, await page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
       if ret != 'N/A'
         ret = /(.*) \/ (.*)/.exec ret
         ret[2] = ret[2].trim()
@@ -173,7 +204,7 @@ class AAStock
     
   lowHigh: (page) ->
     try
-      ret = await @text page, await page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
+      ret = await text page, await page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
       if ret != 'N/A'
         ret = /(\d+\.\d+) \- (\d+\.\d+)/.exec ret
         ret[1] = parseFloat ret[1]
@@ -187,7 +218,7 @@ class AAStock
       
   pe: (page) ->
     try
-      ret = await @text page, await page.$('div#tbPERatio > div:last-child')
+      ret = await text page, await page.$('div#tbPERatio > div:last-child')
       if ret != 'N/A'
         ret = new RegExp "[ ]*(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})"
           .exec ret
@@ -200,7 +231,7 @@ class AAStock
 
   pb: (page) ->
     try
-      ret = await @text page, await page.$('div#tbPBRatio > div:last-child')
+      ret = await text page, await page.$('div#tbPBRatio > div:last-child')
       ret = AAStock.pair ret
       return ret[1..]
     catch err
@@ -209,17 +240,17 @@ class AAStock
 
   dividend: (page) ->
     try
-      ret = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
+      ret = await text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
       ret = AAStock.pair ret
 
-      percent = await @text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(1) > div > div:last-child')
+      percent = await text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(1) > div > div:last-child')
       percent = AAStock.pair percent
 
       link = await page.$('table#tbQuote tr:last-child a')
       link = await link.getProperty 'href'
       link = await link.jsonValue()
 
-      exDate = await @text page, await page.$('table#tbQuote tr:nth-child(10) td > div:last-child > div:first-child > div:nth-child(2)')
+      exDate = await text page, await page.$('table#tbQuote tr:nth-child(10) td > div:last-child > div:first-child > div:nth-child(2)')
 
       [
         ret[2]
@@ -237,13 +268,13 @@ class AAStock
         'table#tbQuote tr:nth-child(1) td:nth-child(2) > div > div:last-child > span'
         'table#tbQuote tr:nth-child(2) td:nth-child(1) > div > div:last-child > span'
       ].map (selector) =>
-        parseFloat await @text page, await page.$(selector)
+        parseFloat await text page, await page.$(selector)
     catch err
       console.error 'change'
       throw err
     
   date: (page) ->
-    await @text page, await page.$('div#cp_pLeft > div:nth-child(3) > span > span')
+    await text page, await page.$('div#cp_pLeft > div:nth-child(3) > span > span')
 
 stockMqtt = ->
   guid = require 'browserguid'
@@ -298,7 +329,7 @@ class AAStockCron
   cron:
     quote: process.env.QUOTECRON || '0 */30 9-16 * * 1-5'
     publish: process.env.PUBLISHCRON || '0 */5 * * * *'
-    hsi: process.env.HSICRON || '0 0 17 * * 1-5'
+    sector: process.env.SECTORCRON || '0 0 17 * * 1-5'
 
   list: []
 
@@ -311,13 +342,13 @@ class AAStockCron
       scheduler = require 'node-schedule'
       browser = await browser() 
       @aastock = new AAStock browser: browser
-      @hsi = new HSI browser: browser
+      @peers = new Peers browser: browser
       scheduler.scheduleJob @cron.quote, =>
         @quote @mqtt.symbols
       scheduler.scheduleJob @cron.publish, =>
         @publish()
-      scheduler.scheduleJob @cron.hsi, =>
-        @getHsi()
+      scheduler.scheduleJob @cron.peers, =>
+        @getSector()
       @mqtt.on 'symbols', (symbols, old) =>
         cached = _.filter @list, (data) ->
           data.symbol in _.intersection(symbols, old)
@@ -341,9 +372,9 @@ class AAStockCron
       for data in @list
         @mqtt.publish process.env.MQTTTOPIC, JSON.stringify data
 
-  getHsi: ->
-    for i in await @hsi.get()
-      @mqtt.publish process.env.HSITOPIC, JSON.stringify i
+  getSector: ->
+    for i in await @peers.get()
+      @mqtt.publish process.env.SECTORTOPIC, JSON.stringify i
     
   add: (data) ->
     selected = _.find @list, (quote) ->
@@ -359,4 +390,4 @@ class AAStockCron
     @list = _.filter @list, (quote) ->
       quote.symbol != symbol
 
-module.exports = {browser, HSI, stockMqtt, AAStock, AAStockCron}
+module.exports = {browser, Peers, stockMqtt, AAStock, AAStockCron}

@@ -1,4 +1,5 @@
-{AAStockCron} = require '../index'
+{browser, Peers, AAStockCron} = require '../index'
 
 do ->
-  await new AAStockCron()
+  peers = new Peers browser: await browser()
+  console.log await peers.get()
