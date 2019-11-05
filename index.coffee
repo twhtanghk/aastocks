@@ -118,53 +118,6 @@ class Peers
     page.close()
     ret
   
-class HSI
-  constructor: ({@browser}) ->
-    return
-
-  symbol: (page, row) ->
-    ret = (await text page, await row.$ 'a')
-      .match /([0-9]+):HK/
-    ret[1]
-      .padStart(4, '0')
-
-  price: (page, row) ->
-    parseFloat await text page, await row.$ 'div.security-summary__head-row-details div.security-summary__price'
-
-  change: (page, row) ->
-    parseFloat await text page, await row.$ 'div.security-summary__head-row-details div.security-summary__price-change'
-
-  changePercent: (page, row) ->
-    await text page, await row.$ 'div.security-summary__head-row-details div.security-summary__percent-change'
-
-  volume: (page, row) ->
-    await text page, await row.$ 'div.security-summary__head-row-details div.security-summary__volume'
-
-  stock: (page, row) ->
-    cols = [
-      'symbol'
-      'price'
-      'change'
-      'changePercent'
-      'volume'
-    ]
-    ret = {}
-    for i in cols
-      ret[i] = await @[i](page, row)
-    return ret
-
-  get: ->
-    try
-      page = await newPage @browser, process.env.HSIURL
-      await page.goto process.env.HSIURL, waitUntil: 'networkidle2'
-      ret = []
-      rows = await page.$$ 'div.index-members div.index-members div.security-summary__head-row'
-      for row in rows
-        ret.push await @stock page, row
-      return ret
-    finally
-      page.close()
-
 class AAStock
   constructor: ({@browser, @urlTemplate}) ->
     @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
@@ -376,7 +329,7 @@ class AAStockCron
   cron:
     quote: process.env.QUOTECRON || '0 */30 9-16 * * 1-5'
     publish: process.env.PUBLISHCRON || '0 */5 * * * *'
-    hsi: process.env.HSICRON || '0 0 17 * * 1-5'
+    sector: process.env.SECTORCRON || '0 0 17 * * 1-5'
 
   list: []
 
@@ -389,13 +342,13 @@ class AAStockCron
       scheduler = require 'node-schedule'
       browser = await browser() 
       @aastock = new AAStock browser: browser
-      @hsi = new HSI browser: browser
+      @peers = new Peers browser: browser
       scheduler.scheduleJob @cron.quote, =>
         @quote @mqtt.symbols
       scheduler.scheduleJob @cron.publish, =>
         @publish()
-      scheduler.scheduleJob @cron.hsi, =>
-        @getHsi()
+      scheduler.scheduleJob @cron.peers, =>
+        @getSector()
       @mqtt.on 'symbols', (symbols, old) =>
         cached = _.filter @list, (data) ->
           data.symbol in _.intersection(symbols, old)
@@ -419,9 +372,9 @@ class AAStockCron
       for data in @list
         @mqtt.publish process.env.MQTTTOPIC, JSON.stringify data
 
-  getHsi: ->
-    for i in await @hsi.get()
-      @mqtt.publish process.env.HSITOPIC, JSON.stringify i
+  getSector: ->
+    for i in await @peers.get()
+      @mqtt.publish process.env.SECTORTOPIC, JSON.stringify i
     
   add: (data) ->
     selected = _.find @list, (quote) ->
@@ -437,4 +390,4 @@ class AAStockCron
     @list = _.filter @list, (quote) ->
       quote.symbol != symbol
 
-module.exports = {browser, Peers, HSI, stockMqtt, AAStock, AAStockCron}
+module.exports = {browser, Peers, stockMqtt, AAStock, AAStockCron}
