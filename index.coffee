@@ -133,7 +133,7 @@ class AAStock
 
   @float: "#{@NA}|\\d+\.\\d+%*"
 
-  @float2: "(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})"
+  @float2: "(#{AAStock.float})[ ]*[\/-][ ]*(#{AAStock.float})"
 
   @pair: (ret) ->
     if ret != 'N/A'
@@ -164,6 +164,7 @@ class AAStock
           last: await @lastPrice page
           lowHigh: await @lowHigh page
           change: await @change page
+        history: await @history page
         details:
           pe: await @pe page
           pb: pb
@@ -173,6 +174,22 @@ class AAStock
         lastUpdatedAt: await @date page
     finally
       await page.close()
+
+  history: (page) ->
+    el = (await page.$$ 'div#cp_pLeft > table')[0]
+    el = await el.$ 'td:first-child'
+    el = await el.$$ 'tbody > tr'
+    ret = {}
+    for i in el
+      row = []
+      for j in await i.$$ 'td'
+        row.push await text page, j
+      row[1] = (AAStock.pair row[1])[1..]
+      ret[row[0]] =
+        low: row[1][0]
+        high: row[1][1]
+        percent: row[2]
+    ret
 
   url: (symbol) ->
     _.template(@urlTemplate)
