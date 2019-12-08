@@ -397,8 +397,6 @@ class AAStockCron
   getSector: ->
     sector = require 'portfolio/backend/model/sector'
     for i in await @peers.get()
-      console.log i
-      @mqtt.publish process.env.SECTORTOPIC, JSON.stringify i
       await sector.model.insert i
 
   add: (data) ->
