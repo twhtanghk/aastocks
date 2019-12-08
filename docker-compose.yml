@@ -6,3 +6,9 @@ services:
       - ./data:/usr/src/app/data
     env_file: 
       - ./.env
+
+networks:
+  default:
+    external:
+      name: net_default
+
