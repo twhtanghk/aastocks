@@ -1,4 +1,5 @@
-{AAStockCron} = require '../index'
+{browser, Peers, AAStockCron} = require '../index'
 
 do ->
-  await new AAStockCron()
+  cron = await new AAStockCron()
+  await cron.getSector()

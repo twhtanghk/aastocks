@@ -36,8 +36,6 @@ text = (page, el) ->
   (await page.evaluate content, el).trim()
 
 class Peers
-  @pattern: /([a-zA-Z]*)PEERS/
-
   @cols: [
     'symbol'
     'price'
@@ -55,8 +53,9 @@ class Peers
     return
 
   url: ->
-    ret = _.pickBy process.env, (v, k) ->
-      Peers.pattern.test k
+    ret = [process.env.HSIMember]
+    for symbol in process.env.PEERS.split(',')
+      ret.push process.env.PEERSURL.replace '${symbol}', symbol
     ret
 
   symbol: (page, row) ->
@@ -107,10 +106,9 @@ class Peers
   get: ->
     ret = []
     urlList = @url()
-    page = await newPage @browser, _.values(urlList)[0]
-    for group, peerUrl of urlList
-      sector = group.match(Peers.pattern)[1]
-      await page.goto peerUrl, waitUntil: 'networkidle2'
+    page = await newPage @browser, urlList[0]
+    for sector in urlList
+      await page.goto sector, waitUntil: 'networkidle2'
       last = await @length page
       while true
         await page.evaluate ->
@@ -399,7 +397,7 @@ class AAStockCron
   getSector: ->
     for i in await @peers.get()
       @mqtt.publish process.env.SECTORTOPIC, JSON.stringify i
-    
+
   add: (data) ->
     selected = _.find @list, (quote) ->
       quote.symbol == data.symbol
