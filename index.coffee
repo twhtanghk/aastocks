@@ -370,7 +370,9 @@ class AAStockCron
       scheduler.scheduleJob @cron.publish, =>
         @publish()
       scheduler.scheduleJob @cron.sector, =>
-        @getSector()
+        {isHoliday} = require 'hkholiday'
+        if not await isHoliday new Date()
+          @getSector()
       @mqtt.on 'symbols', (symbols, old) =>
         cached = _.filter @list, (data) ->
           data.symbol in _.intersection(symbols, old)
