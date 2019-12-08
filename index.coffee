@@ -395,9 +395,8 @@ class AAStockCron
         @mqtt.publish process.env.MQTTTOPIC, JSON.stringify data
 
   getSector: ->
-    sector = require 'portfolio/backend/model/sector'
     for i in await @peers.get()
-      await sector.model.insert i
+      @mqtt.publish process.env.SECTORTOPIC, JSON.stringify i
 
   add: (data) ->
     selected = _.find @list, (quote) ->
