@@ -20,10 +20,13 @@
     "bluebird": "^3.5.3",
     "browserguid": "https://github.com/twhtanghk/browserGuid",
     "coffeescript": "^2.3.2",
+    "koamodel": "https://github.com/twhtanghk/koamodel",
     "leading-zeroes": "^2.0.1",
     "lodash": "^4.17.11",
+    "monk": "^7.1.1",
     "mqtt": "^2.18.8",
     "node-schedule": "^1.3.2",
+    "portfolio": "https://github.com/twhtanghk/portfolio",
     "puppeteer": "^2.0.0"
   }
 }
