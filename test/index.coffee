@@ -2,4 +2,4 @@
 
 do ->
   aastock = new AAStock browser: await browser()
-  await aastock.quote '2840'
+  console.log await aastock.quote '2840'
