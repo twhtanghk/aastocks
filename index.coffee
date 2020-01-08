@@ -258,16 +258,13 @@ class AAStock
   pb: (page) ->
     try
       symbol = await @symbol page
-      switch true
-        when await service.isEquity symbol # for equity
-          ret = await text page, await page.$ 'div#tbPBRatio > div:last-child'
-          ret = AAStock.pair ret
-          return ret[1..]
-        when await service.isETF symbol # for ETF
-          nav = await text page, await page.$('table#tbQuote tr:nth-child(4) td:nth-child(1) > div > div:last-child')
-          return [null, nav]
-        else
-          throw new Error 'not supported yet'
+      if await service.isETF symbol # for ETF
+        nav = await text page, await page.$('table#tbQuote tr:nth-child(4) td:nth-child(1) > div > div:last-child')
+        return [null, nav]
+      else
+        ret = await text page, await page.$ 'div#tbPBRatio > div:last-child'
+        ret = AAStock.pair ret
+        return ret[1..]
     catch err
       console.error 'pb'
       throw err
