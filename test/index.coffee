@@ -1,4 +1,5 @@
-{AAStockCron} = require '../index'
+{browser, AAStock, AAStockCron} = require '../index'
 
 do ->
-  await new AAStockCron()
+  aastock = new AAStock browser: await browser()
+  await aastock.quote '2840'

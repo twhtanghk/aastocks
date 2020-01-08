@@ -2,6 +2,7 @@ _ = require 'lodash'
 pad = require('leading-zeroes').default
 puppeteer = require 'puppeteer'
 Promise = require 'bluebird'
+{service} = require 'hkex'
 
 browser = ->
   opts =
@@ -143,6 +144,9 @@ class AAStock
       ret = ['', NaN, NaN]
     return ret
 
+  symbol: (page) ->
+    await (await (await page.$ 'input#sb2-txtSymbol-aa').getProperty 'value').jsonValue()
+
   quote: (symbol) ->
     try
       page = await newPage @browser, @urlTemplate
@@ -228,9 +232,7 @@ class AAStock
     try
       ret = await text page, await page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
       if ret != 'N/A'
-        ret = /(\d+\.\d+) \- (\d+\.\d+)/.exec ret
-        ret[1] = parseFloat ret[1]
-        ret[2] = parseFloat ret[2]
+        ret = AAStock.pair ret
         return ret[1..2]
       else
         return [NaN, NaN]
@@ -240,22 +242,36 @@ class AAStock
       
   pe: (page) ->
     try
-      ret = await text page, await page.$('div#tbPERatio > div:last-child')
-      if ret != 'N/A'
-        ret = new RegExp "[ ]*(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})"
-          .exec ret
-        return if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
-      else
-        return NaN
+      symbol = await @symbol page
+      switch true
+        when await service.isEquity symbol # for equity
+          ret = await text page, await page.$('div#tbPERatio > div:last-child')
+          if ret != 'N/A'
+            ret = AAStock.pair ret
+            return ret[1]
+          else
+            return NaN
+        when await service.isETF symbol # for ETF
+          return [null, null]
+        else
+          throw new Error 'not supported yet'
     catch err
       console.error 'pe'
       throw err
 
   pb: (page) ->
     try
-      ret = await text page, await page.$('div#tbPBRatio > div:last-child')
-      ret = AAStock.pair ret
-      return ret[1..]
+      symbol = await @symbol page
+      switch true
+        when await service.isEquity symbol # for equity
+          ret = await text page, await page.$ 'div#tbPBRatio > div:last-child'
+          ret = AAStock.pair ret
+          return ret[1..]
+        when await service.isETF symbol # for ETF
+          nav = await text page, await page.$('table#tbQuote tr:nth-child(4) td:nth-child(1) > div > div:last-child')
+          return [null, nav]
+        else
+          throw new Error 'not supported yet'
     catch err
       console.error 'pb'
       throw err
