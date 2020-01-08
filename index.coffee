@@ -224,7 +224,7 @@ class AAStock
     try
       ret = await text page, await page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
       if ret != 'N/A'
-        return (AAStock.pair AAStock.delComma ret)[1..2]
+        return (AAStock.pair ret)[1..2]
       else
         return NaN
     catch err
@@ -259,8 +259,10 @@ class AAStock
     try
       symbol = await @symbol page
       if await service.isETF symbol # for ETF
-        nav = await text page, await page.$('table#tbQuote tr:nth-child(4) td:nth-child(1) > div > div:last-child')
-        return [null, nav]
+        nav = (await text page, await page.$('table#tbQuote tr:nth-child(4) td:nth-child(1) > div > div:last-child')).replace /\/.*/, ''
+        nav = parseFloat AAStock.delComma nav
+        pb = (await @currPrice page) / nav
+        return [pb, nav]
       else
         ret = await text page, await page.$ 'div#tbPBRatio > div:last-child'
         ret = AAStock.pair ret
