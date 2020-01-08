@@ -2,6 +2,7 @@ _ = require 'lodash'
 pad = require('leading-zeroes').default
 puppeteer = require 'puppeteer'
 Promise = require 'bluebird'
+{service} = require 'hkex'
 
 browser = ->
   opts =
@@ -133,8 +134,12 @@ class AAStock
 
   @float2: "(#{AAStock.float})[ ]*[\/-][ ]*(#{AAStock.float})"
 
+  @delComma: (str) ->
+    str.replace /,/g, ''
+
   @pair: (ret) ->
     if ret != 'N/A'
+      ret = AAStock.delComma ret
       ret = new RegExp AAStock.float2
         .exec ret
       ret[1] = if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
@@ -142,6 +147,9 @@ class AAStock
     else
       ret = ['', NaN, NaN]
     return ret
+
+  symbol: (page) ->
+    await (await (await page.$ 'input#sb2-txtSymbol-aa').getProperty 'value').jsonValue()
 
   quote: (symbol) ->
     try
@@ -152,6 +160,8 @@ class AAStock
           form.submit()
         page.waitForNavigation waitUntil: 'load'
       ]
+      symbol = await @symbol page
+      isETF = await service.isETF symbol
       [pb, nav] = await @pb page
       return
         src: 'aastocks'
@@ -164,11 +174,10 @@ class AAStock
           change: await @change page
         history: await @history page
         details:
-          pe: await @pe page
+          pe: if isETF then null else await @pe page
           pb: pb
           nav: nav
-          dividend: await @dividend page
-          marketValue: await @marketValue page
+          dividend: if isETF then null else await @dividend page
         lastUpdatedAt: await @date page
     finally
       await page.close()
@@ -206,7 +215,7 @@ class AAStock
 
   currPrice: (page) ->
     try
-      parseFloat await text page, await page.$('#labelLast span')
+      parseFloat AAStock.delComma await text page, await page.$('#labelLast span')
     catch err
       console.error 'currPrice'
       throw err
@@ -215,9 +224,7 @@ class AAStock
     try
       ret = await text page, await page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
       if ret != 'N/A'
-        ret = /(.*) \/ (.*)/.exec ret
-        ret[2] = ret[2].trim()
-        return if ret[2] == 'N/A' then NaN else parseFloat ret[2]
+        return (AAStock.pair AAStock.delComma ret)[1..2]
       else
         return NaN
     catch err
@@ -228,9 +235,7 @@ class AAStock
     try
       ret = await text page, await page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
       if ret != 'N/A'
-        ret = /(\d+\.\d+) \- (\d+\.\d+)/.exec ret
-        ret[1] = parseFloat ret[1]
-        ret[2] = parseFloat ret[2]
+        ret = AAStock.pair ret
         return ret[1..2]
       else
         return [NaN, NaN]
@@ -242,9 +247,8 @@ class AAStock
     try
       ret = await text page, await page.$('div#tbPERatio > div:last-child')
       if ret != 'N/A'
-        ret = new RegExp "[ ]*(#{AAStock.float})[ ]*\/[ ]*(#{AAStock.float})"
-          .exec ret
-        return if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
+        ret = AAStock.pair ret
+        return ret[1]
       else
         return NaN
     catch err
@@ -253,9 +257,17 @@ class AAStock
 
   pb: (page) ->
     try
-      ret = await text page, await page.$('div#tbPBRatio > div:last-child')
-      ret = AAStock.pair ret
-      return ret[1..]
+      symbol = await @symbol page
+      switch true
+        when await service.isEquity symbol # for equity
+          ret = await text page, await page.$ 'div#tbPBRatio > div:last-child'
+          ret = AAStock.pair ret
+          return ret[1..]
+        when await service.isETF symbol # for ETF
+          nav = await text page, await page.$('table#tbQuote tr:nth-child(4) td:nth-child(1) > div > div:last-child')
+          return [null, nav]
+        else
+          throw new Error 'not supported yet'
     catch err
       console.error 'pb'
       throw err
