@@ -177,7 +177,7 @@ class AAStock
           pe: if isETF then null else await @pe page
           pb: pb
           nav: nav
-          dividend: if isETF then null else await @dividend page
+          dividend: if isETF then [null, null, null, null] else await @dividend page
         lastUpdatedAt: await @date page
     finally
       await page.close()
