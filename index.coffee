@@ -205,9 +205,12 @@ class AAStock
   name: (page) ->
     await text page, await page.$('#SQ_Name span')
 
+  elem: (page) ->
+    await page.$ '#cp_pLeft > div > table'
+
   marketValue: (page) ->
     try
-      ret = await text page, await page.$('table#tbQuote tr:nth-child(8) td:nth-child(1) > div > div:last-child')
+      ret = await text page, await (await @elem page).$('tr:nth-child(8) td:nth-child(1) > div > div:last-child')
       return parseFloat ret
     catch err
       console.error 'marketValue'
@@ -222,7 +225,7 @@ class AAStock
 
   lastPrice: (page) ->
     try
-      ret = await text page, await page.$('table#tbQuote tr:nth-child(1) td:nth-child(5) > div > div:last-child')
+      ret = await text page, await (await @elem page).$('tr:nth-child(1) td:nth-child(5) > div > div:last-child')
       if ret != 'N/A'
         return (AAStock.pair ret)[1..2]
       else
@@ -233,7 +236,7 @@ class AAStock
     
   lowHigh: (page) ->
     try
-      ret = await text page, await page.$('table#tbQuote tr:nth-child(2) td:nth-child(4) > div >div:last-child')
+      ret = await text page, await (await @elem page).$('tr:nth-child(2) td:nth-child(4) > div >div:last-child')
       if ret != 'N/A'
         ret = AAStock.pair ret
         return ret[1..2]
@@ -259,7 +262,7 @@ class AAStock
     try
       symbol = await @symbol page
       if await service.isETF symbol # for ETF
-        nav = (await text page, await page.$('table#tbQuote tr:nth-child(4) td:nth-child(1) > div > div:last-child')).replace /\/.*/, ''
+        nav = (await text page, await (await @elem page).$('tr:nth-child(4) td:nth-child(1) > div > div:last-child')).replace /\/.*/, ''
         nav = parseFloat AAStock.delComma nav
         pb = (await @currPrice page) / nav
         return [pb, nav]
@@ -273,17 +276,17 @@ class AAStock
 
   dividend: (page) ->
     try
-      ret = await text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(2) > div > div:last-child')
+      ret = await text page, await (await @elem page).$('tr:nth-child(5) td:nth-child(2) > div > div:last-child')
       ret = AAStock.pair ret
 
-      percent = await text page, await page.$('table#tbQuote tr:nth-child(5) td:nth-child(1) > div > div:last-child')
+      percent = await text page, await (await @elem page).$('tr:nth-child(5) td:nth-child(1) > div > div:last-child')
       percent = AAStock.pair percent
 
-      link = await page.$('table#tbQuote tr:last-child a')
+      link = await (await @elem page).$('tr:last-child a')
       link = await link.getProperty 'href'
       link = await link.jsonValue()
 
-      exDate = await text page, await page.$('table#tbQuote tr:nth-child(10) td > div:last-child > div:first-child > div:nth-child(2)')
+      exDate = await text page, await (await @elem page).$('tr:nth-child(10) td > div:last-child > div:first-child > div:nth-child(2)')
 
       [
         ret[2]
@@ -298,10 +301,10 @@ class AAStock
   change: (page) ->
     try
       await Promise.all [
-        'table#tbQuote tr:nth-child(1) td:nth-child(2) > div > div:last-child > span'
-        'table#tbQuote tr:nth-child(2) td:nth-child(1) > div > div:last-child > span'
+        'tr:nth-child(1) td:nth-child(2) > div > div:last-child > span'
+        'tr:nth-child(2) td:nth-child(1) > div > div:last-child > span'
       ].map (selector) =>
-        parseFloat await text page, await page.$(selector)
+        parseFloat await text page, await (await @elem page).$(selector)
     catch err
       console.error 'change'
       throw err
