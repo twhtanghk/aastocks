@@ -36,6 +36,30 @@ text = (page, el) ->
     el.textContent
   (await page.evaluate content, el).trim()
 
+class Industry
+  constructor: ({@browser}) ->
+    return
+
+  list: ->
+    ret = {}
+    page = await newPage @browser, process.env.INDUSTRYURL
+    await page.goto process.env.INDUSTRYURL, waitUntil: 'networkidle2'
+    for row in await page.$$ 'table.indview_tbl tbody tr'
+      elem = await row.$ 'td:nth-child(1) > a:nth-child(1)'
+      if elem?
+        ret[await text elem] = await (await elem.getProperty 'href').jsonValue()
+    ret
+    
+  constituent: (href) ->
+    ret = []
+    page = await newPage @browser, href
+    await page.goto href, waitUntil: 'networkidle2'
+    for row in await page.$$ 'table#tbTS tbody tr'
+      elem = await row.$ 'td:nth-child(1) div:nth-child(2) a'
+      if elem?
+        ret.push await text elem
+    ret
+
 class Peers
   @cols: [
     'symbol'
@@ -428,4 +452,4 @@ class AAStockCron
     @list = _.filter @list, (quote) ->
       quote.symbol != symbol
 
-module.exports = {browser, Peers, stockMqtt, AAStock, AAStockCron}
+module.exports = {browser, Peers, stockMqtt, AAStock, AAStockCron, Industry}
