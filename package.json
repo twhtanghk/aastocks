@@ -2,7 +2,7 @@
   "name": "aastocks",
   "version": "0.0.1",
   "description": "Web scaraper for aastocks detailed quote data",
-  "main": "index.js",
+  "main": "index.coffee",
   "scripts": {
     "test": "coffee test/index.coffee"
   },
