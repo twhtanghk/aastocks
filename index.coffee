@@ -36,6 +36,20 @@ text = (page, el) ->
     el.textContent
   (await page.evaluate content, el).trim()
 
+class Industry
+  constructor: ({@browser}) ->
+    return
+
+  list: ->
+    ret = []
+    page = await newPage @browser
+    await page.goto process.env.INDUSTRYURL, waitUntil 'networkidle2'
+    for row in await page.$$ 'table.indview_tbl tbody tr'
+      ret.push await text, await row.$ 'td:nth-child(1)'
+    ret
+    
+  constituent: (industry) ->
+  
 class Peers
   @cols: [
     'symbol'
