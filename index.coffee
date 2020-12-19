@@ -41,15 +41,25 @@ class Industry
     return
 
   list: ->
-    ret = []
-    page = await newPage @browser
-    await page.goto process.env.INDUSTRYURL, waitUntil 'networkidle2'
+    ret = {}
+    page = await newPage @browser, process.env.INDUSTRYURL
+    await page.goto process.env.INDUSTRYURL, waitUntil: 'networkidle2'
     for row in await page.$$ 'table.indview_tbl tbody tr'
-      ret.push await text, await row.$ 'td:nth-child(1)'
+      elem = await row.$ 'td:nth-child(1) > a:nth-child(1)'
+      if elem?
+        ret[await text elem] = await (await elem.getProperty 'href').jsonValue()
     ret
     
-  constituent: (industry) ->
-  
+  constituent: (href) ->
+    ret = []
+    page = await newPage @browser, href
+    await page.goto href, waitUntil: 'networkidle2'
+    for row in await page.$$ 'table#tbTS tbody tr'
+      elem = await row.$ 'td:nth-child(1) div:nth-child(2) a'
+      if elem?
+        ret.push await text elem
+    ret
+
 class Peers
   @cols: [
     'symbol'
@@ -442,4 +452,4 @@ class AAStockCron
     @list = _.filter @list, (quote) ->
       quote.symbol != symbol
 
-module.exports = {browser, Peers, stockMqtt, AAStock, AAStockCron}
+module.exports = {browser, Peers, stockMqtt, AAStock, AAStockCron, Industry}
