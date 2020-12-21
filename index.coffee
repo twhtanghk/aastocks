@@ -128,21 +128,37 @@ class Peers
   length: (page) ->
     (await @rows page).length
 
+  pgDn: (page) ->
+    last = await @length page
+    while true
+      await page.evaluate ->
+        window.scrollBy 0, document.body.scrollHeight
+      await page.waitFor 1000
+      curr = await @length page
+      if curr == last
+        break
+      else
+        last = curr
+  
+  # get peers of specified stock symbol
+  list: (symbol) ->
+    url = process.env.PEERSURL.replace '${symbol}', symbol
+    page = await newPage @browser, url
+    await page.goto url, waitUntil: 'networkidle2'
+    await @pgDn page
+    ret = []
+    for row in await @rows page
+      ret.push (await @stock page, row).symbol
+    page.close()
+    ret
+
   get: ->
     ret = []
     urlList = @url()
     page = await newPage @browser, urlList[0]
     for sector in urlList
       await page.goto sector, waitUntil: 'networkidle2'
-      last = await @length page
-      while true
-        await page.evaluate ->
-          window.scrollBy 0, document.body.scrollHeight
-        curr = await @length page
-        if curr == last
-          break
-        else
-          last = curr
+      await @pgDn page
       for row in await @rows page
         ret = ret.concat _.extend sector: sector, await @stock page, row
     page.close()
