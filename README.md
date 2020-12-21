@@ -12,7 +12,7 @@ npm install https://github.com/twhtanghk/aastocks
 {browser, Industry} = require 'aastock'
 
 do ->
-  industry = await new Industry browser: await browser()
+  industry = new Industry browser: await browser()
   console.log JSON.stringify await industry.list()
 ```
 
@@ -21,7 +21,7 @@ do ->
 {browser, Industry} = require 'aastock'
 
 do ->
-  industry = await new Industry browser: await browser()
+  industry = new Industry browser: await browser()
   for name, href of await industry.list()
     console.log name
     console.log await industry.constituent href
@@ -32,7 +32,7 @@ do ->
 {browser, AAStock} = require 'aastock'
 
 do ->
-  aastock = await new AAStock browser: await browser()
+  aastock = new AAStock browser: await browser()
   console.log await aastock.quote '2840'
 ```
 
@@ -41,7 +41,6 @@ do ->
 {browser, Peers} = require 'aastock'
 
 do ->
-  process.env.PEERS="941,9988"
-  peers = await new Peers browser: await browser()
-  console.log await peers.get()
+  peers = new Peers browser: await browser()
+  console.log await peers.list '700'
 ```
