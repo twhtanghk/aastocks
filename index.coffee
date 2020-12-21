@@ -170,7 +170,7 @@ class AAStock
 
   @NA: 'N/A'
 
-  @float: "#{@NA}|\\d+\.\\d+%*"
+  @float: "#{@NA}|-*\\d+\.\\d+%*"
 
   @float2: "(#{AAStock.float})[ ]*[\/-][ ]*(#{AAStock.float})"
 
