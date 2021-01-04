@@ -74,8 +74,13 @@ class Peers
     'marketCap'
   ]
 
-  constructor: ({@browser}) ->
-    return
+  constructor: ({@browser, @mqtt}) ->
+    @mqtt.on 'message', (topic, msg) =>
+      if topic == 'stock/peers'
+        data = 
+          src: 'aastocks'
+          peers: await @list JSON.parse msg.toString()
+        mqtt.publish 'stock/aastocks/peers', JSON.stringify data
 
   url: ->
     ret = [process.env.HSIMember]
@@ -418,7 +423,7 @@ class AAStockCron
       scheduler = require 'node-schedule'
       browser = await browser() 
       @aastock = new AAStock browser: browser
-      @peers = new Peers browser: browser
+      @peers = new Peers browser: browser, mqtt: @mqtt
       scheduler.scheduleJob @cron.quote, =>
         @quote @mqtt.symbols
       scheduler.scheduleJob @cron.publish, =>
