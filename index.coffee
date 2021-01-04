@@ -80,7 +80,7 @@ class Peers
         data = 
           src: 'aastocks'
           peers: await @list JSON.parse msg.toString()
-        mqtt.publish 'stock/aastocks/peers', JSON.stringify data
+        @mqtt.publish 'stock/aastocks/peers', JSON.stringify data
 
   url: ->
     ret = [process.env.HSIMember]
