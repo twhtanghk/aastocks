@@ -79,7 +79,7 @@ class Peers
       if topic == 'stock/peers'
         data = 
           src: 'aastocks'
-          peers: await @list JSON.parse msg.toString()
+          peers: await @list msg.toString()
         @mqtt.publish 'stock/aastocks/peers', JSON.stringify data
 
   url: ->
