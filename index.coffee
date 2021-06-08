@@ -183,10 +183,10 @@ class AAStock
     str.replace /,/g, ''
 
   @pair: (ret) ->
-    if ret != 'N/A'
-      ret = AAStock.delComma ret
-      ret = new RegExp AAStock.float2
-        .exec ret
+    ret = AAStock.delComma ret
+    ret = new RegExp AAStock.float2
+      .exec ret
+    if ret != null
       ret[1] = if ret[1] == AAStock.NA then NaN else parseFloat ret[1]
       ret[2] = if ret[2] == AAStock.NA then NaN else parseFloat ret[2]
     else
