@@ -331,7 +331,7 @@ class AAStock
       link = await link.getProperty 'href'
       link = await link.jsonValue()
 
-      exDate = await text page, await (await @elem page).$('tr:nth-child(10) td > div:last-child > div:first-child > div:nth-child(2)')
+      exDate = await text page, await (await @elem page).$('tr:nth-child(11) td > div:last-child > div:first-child > div:nth-child(2)')
 
       [
         ret[2]
