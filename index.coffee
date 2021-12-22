@@ -201,13 +201,14 @@ class AAStock
   quote: (symbol) ->
     try
       page = await newPage @browser, process.env.HKQUOTEURL
-      await page.goto @url symbol, waitUntil: 'networkidle2'
+      await page.goto @url(symbol), waitUntil: 'networkidle2'
       await Promise.all [
         page.$eval '#mainForm', (form) ->
           form.submit()
         page.waitForNavigation waitUntil: 'load'
       ]
       symbol = await @symbol page
+      console.log symbol
       isETF = await service.isETF symbol
       [pb, nav] = await @pb page
       return
@@ -230,7 +231,7 @@ class AAStock
       await page.close()
 
   history: (page) ->
-    el = (await page.$$ 'div#cp_pLeft > table')[0]
+    el = (await page.$$ 'div.grid_11 > table')[0]
     el = await el.$ 'td:first-child'
     el = await el.$$ 'tbody > tr'
     ret = {}
@@ -246,14 +247,14 @@ class AAStock
     ret
 
   url: (symbol) ->
-    {symbol, exchalnge} = parse symbol
-    switch exchange
-      when 'hk'
+    {symbol, exchange} = parse symbol
+    switch true
+      when exchange == 'hk'
         symbol = pad symbol, 5
-        process.env.HKQUOTEURL.replace '#{symbol}', symbol
-      when 'sz'
+        process.env.HKQUOTEURL.replace '${symbol}', symbol
+      when exchange == 'sz' or exchange == 'sh'
         symbol = pad symbol, 6
-        process.env.SZQUOTEURL.replace '#{symbol}', symbol
+        process.env.SZQUOTEURL.replace '${symbol}', symbol
       else
         throw new Error "invalid symbol #{symbol}"
 
@@ -261,7 +262,7 @@ class AAStock
     await text page, await page.$('#SQ_Name span')
 
   elem: (page) ->
-    await page.$ '#cp_pLeft > div > table'
+    await page.$ 'div.grid_11 > div.content > table[id^=tbQuote]'
 
   marketValue: (page) ->
     try
@@ -303,7 +304,7 @@ class AAStock
       
   pe: (page) ->
     try
-      ret = await text page, await page.$('div#tbPERatio > div:last-child')
+      ret = await text page, await page.$('table[id^=tbQuote] tr:nth-child(4) > td > div > div:last-child')
       if ret != 'N/A'
         ret = AAStock.pair ret
         return ret[1]
@@ -322,7 +323,7 @@ class AAStock
         pb = (await @currPrice page) / nav
         return [pb, nav]
       else
-        ret = await text page, await page.$ 'div#tbPBRatio > div:last-child'
+        ret = await text page, await page.$ 'div > div:last-child'
         ret = AAStock.pair ret
         return ret[1..]
     catch err
@@ -331,6 +332,7 @@ class AAStock
 
   dividend: (page) ->
     try
+      console.log page.url()
       ret = await text page, await (await @elem page).$('tr:nth-child(5) td:nth-child(2) > div > div:last-child')
       ret = AAStock.pair ret
 
