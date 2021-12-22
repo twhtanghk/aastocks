@@ -3,6 +3,8 @@ pad = require('leading-zeroes').default
 puppeteer = require 'puppeteer'
 Promise = require 'bluebird'
 {service} = require 'hkex'
+{symbol} = require 'analysis'
+{parse, format} = symbol
 
 browser = ->
   opts =
@@ -170,8 +172,8 @@ class Peers
     ret
   
 class AAStock
-  constructor: ({@browser, @urlTemplate}) ->
-    @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
+  constructor: ({@browser}) ->
+    return
 
   @NA: 'N/A'
 
@@ -198,7 +200,7 @@ class AAStock
 
   quote: (symbol) ->
     try
-      page = await newPage @browser, @urlTemplate
+      page = await newPage @browser, process.env.HKQUOTEURL
       await page.goto @url symbol, waitUntil: 'networkidle2'
       await Promise.all [
         page.$eval '#mainForm', (form) ->
@@ -244,8 +246,16 @@ class AAStock
     ret
 
   url: (symbol) ->
-    _.template(@urlTemplate)
-      symbol: pad symbol, 5
+    {symbol, exchalnge} = parse symbol
+    switch exchange
+      when 'hk'
+        symbol = pad symbol, 5
+        process.env.HKQUOTEURL.replace '#{symbol}', symbol
+      when 'sz'
+        symbol = pad symbol, 6
+        process.env.SZQUOTEURL.replace '#{symbol}', symbol
+      else
+        throw new Error "invalid symbol #{symbol}"
 
   name: (page) ->
     await text page, await page.$('#SQ_Name span')
