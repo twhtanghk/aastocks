@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/twhtanghk/aastocks#readme",
   "dependencies": {
+    "analysis": "github:twhtanghk/analysis",
     "bluebird": "^3.5.3",
     "browserguid": "https://github.com/twhtanghk/browserGuid",
     "coffeescript": "^2.3.2",

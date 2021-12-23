@@ -3,6 +3,8 @@ pad = require('leading-zeroes').default
 puppeteer = require 'puppeteer'
 Promise = require 'bluebird'
 {service} = require 'hkex'
+{symbol} = require 'analysis'
+{parse, format} = symbol
 
 browser = ->
   opts =
@@ -170,8 +172,8 @@ class Peers
     ret
   
 class AAStock
-  constructor: ({@browser, @urlTemplate}) ->
-    @urlTemplate ?= 'http://www.aastocks.com/tc/stocks/quote/detail-quote.aspx?symbol=<%=symbol%>'
+  constructor: ({@browser}) ->
+    return
 
   @NA: 'N/A'
 
@@ -198,8 +200,8 @@ class AAStock
 
   quote: (symbol) ->
     try
-      page = await newPage @browser, @urlTemplate
-      await page.goto @url symbol, waitUntil: 'networkidle2'
+      page = await newPage @browser, process.env.HKQUOTEURL
+      await page.goto @url(symbol), waitUntil: 'networkidle2'
       await Promise.all [
         page.$eval '#mainForm', (form) ->
           form.submit()
@@ -228,7 +230,7 @@ class AAStock
       await page.close()
 
   history: (page) ->
-    el = (await page.$$ 'div#cp_pLeft > table')[0]
+    el = (await page.$$ 'div.grid_11 > table')[0]
     el = await el.$ 'td:first-child'
     el = await el.$$ 'tbody > tr'
     ret = {}
@@ -244,14 +246,22 @@ class AAStock
     ret
 
   url: (symbol) ->
-    _.template(@urlTemplate)
-      symbol: pad symbol, 5
+    {symbol, exchange} = parse symbol
+    switch true
+      when exchange == 'hk'
+        symbol = pad symbol, 5
+        process.env.HKQUOTEURL.replace '${symbol}', symbol
+      when exchange == 'sz' or exchange == 'sh'
+        symbol = pad symbol, 6
+        process.env.SZQUOTEURL.replace '${symbol}', symbol
+      else
+        throw new Error "invalid symbol #{symbol}"
 
   name: (page) ->
     await text page, await page.$('#SQ_Name span')
 
   elem: (page) ->
-    await page.$ '#cp_pLeft > div > table'
+    await page.$ 'div.grid_11 > div.content > table[id^=tbQuote]'
 
   marketValue: (page) ->
     try
@@ -293,7 +303,7 @@ class AAStock
       
   pe: (page) ->
     try
-      ret = await text page, await page.$('div#tbPERatio > div:last-child')
+      ret = await text page, await page.$('table[id^=tbQuote] tr:nth-child(4) > td > div > div:last-child')
       if ret != 'N/A'
         ret = AAStock.pair ret
         return ret[1]
@@ -312,7 +322,7 @@ class AAStock
         pb = (await @currPrice page) / nav
         return [pb, nav]
       else
-        ret = await text page, await page.$ 'div#tbPBRatio > div:last-child'
+        ret = await text page, await page.$('table[id^=tbQuote] tr:nth-child(6) > td >div > div:last-child')
         ret = AAStock.pair ret
         return ret[1..]
     catch err
@@ -327,11 +337,10 @@ class AAStock
       percent = await text page, await (await @elem page).$('tr:nth-child(5) td:nth-child(1) > div > div:last-child')
       percent = AAStock.pair percent
 
-      link = await (await @elem page).$('tr:last-child a')
-      link = await link.getProperty 'href'
-      link = await link.jsonValue()
+      symbol = await @symbol page
+      link = if symbol.length == 5 then process.env.HKDIVURL.replace '${symbol}', symbol else process.env.SZDIVURL.replace '${symbol}', symbol
 
-      exDate = await text page, await (await @elem page).$('tr:nth-child(11) td > div:last-child > div:first-child > div:nth-child(2)')
+      exDate = await text page, await page.$('div.divDH2 > div:first-child > div:nth-child(2)')
 
       [
         ret[2]
@@ -355,7 +364,7 @@ class AAStock
       throw err
     
   date: (page) ->
-    await text page, await page.$('div#cp_pLeft > div:nth-child(3) > span > span')
+    await text page, await page.$('span.pad5L > span')
 
 stockMqtt = ->
   guid = require 'browserguid'
