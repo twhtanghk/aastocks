@@ -208,7 +208,6 @@ class AAStock
         page.waitForNavigation waitUntil: 'load'
       ]
       symbol = await @symbol page
-      console.log symbol
       isETF = await service.isETF symbol
       [pb, nav] = await @pb page
       return
@@ -323,7 +322,7 @@ class AAStock
         pb = (await @currPrice page) / nav
         return [pb, nav]
       else
-        ret = await text page, await page.$ 'div > div:last-child'
+        ret = await text page, await page.$('table[id^=tbQuote] tr:nth-child(6) > td >div > div:last-child')
         ret = AAStock.pair ret
         return ret[1..]
     catch err
@@ -332,18 +331,16 @@ class AAStock
 
   dividend: (page) ->
     try
-      console.log page.url()
       ret = await text page, await (await @elem page).$('tr:nth-child(5) td:nth-child(2) > div > div:last-child')
       ret = AAStock.pair ret
 
       percent = await text page, await (await @elem page).$('tr:nth-child(5) td:nth-child(1) > div > div:last-child')
       percent = AAStock.pair percent
 
-      link = await (await @elem page).$('tr:last-child a')
-      link = await link.getProperty 'href'
-      link = await link.jsonValue()
+      symbol = await @symbol page
+      link = if symbol.length == 5 then process.env.HKDIVURL.replace '${symbol}', symbol else process.env.SZDIVURL.replace '${symbol}', symbol
 
-      exDate = await text page, await (await @elem page).$('tr:nth-child(11) td > div:last-child > div:first-child > div:nth-child(2)')
+      exDate = await text page, await page.$('div.divDH2 > div:first-child > div:nth-child(2)')
 
       [
         ret[2]
@@ -367,7 +364,7 @@ class AAStock
       throw err
     
   date: (page) ->
-    await text page, await page.$('div#cp_pLeft > div:nth-child(3) > span > span')
+    await text page, await page.$('span.pad5L > span')
 
 stockMqtt = ->
   guid = require 'browserguid'
