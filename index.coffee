@@ -231,6 +231,8 @@ class AAStock
 
   history: (page) ->
     el = (await page.$$ 'div.grid_11 > table')[0]
+    if (await @symbol(page)).length == 6
+      el = (await page.$$ 'div.grid_11 > table')[1]
     el = await el.$ 'td:first-child'
     el = await el.$$ 'tbody > tr'
     ret = {}
