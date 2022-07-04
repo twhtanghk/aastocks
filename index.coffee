@@ -56,7 +56,7 @@ class Industry
     ret = []
     page = await newPage @browser, href
     await page.goto href, waitUntil: 'networkidle2'
-    for row in await page.$$ 'table#tbTS tbody tr'
+    for row in await page.$$ 'table#tblTS2 tbody tr'
       elem = await row.$ 'td:nth-child(1) div:nth-child(2) a'
       if elem?
         ret.push await text elem
@@ -97,31 +97,31 @@ class Peers
       .padStart(4, '0')[-4..]
 
   price: (page, row) ->
-    parseFloat await text page, await row.$ 'td:nth-child(3)'
+    parseFloat await text page, await row.$ 'td:nth-child(2)'
 
   change: (page, row) ->
-    parseFloat await text page, await row.$ 'td:nth-child(4) span'
+    parseFloat await text page, await row.$ 'td:nth-child(3) span'
 
   changePercent: (page, row) ->
-    await text page, await row.$ 'td:nth-child(5) span'
+    await text page, await row.$ 'td:nth-child(4) span'
  
   volume: (page, row) ->
-    parseFloat await text page, await row.$ 'td:nth-child(6)'
+    parseFloat await text page, await row.$ 'td:nth-child(5)'
 
   turnover: (page, row) ->
-    parseFloat await text page, await row.$ 'td:nth-child(7)'
+    parseFloat await text page, await row.$ 'td:nth-child(6)'
 
   pe: (page, row) ->
-    parseFloat await text page, await row.$ 'td:nth-child(8)'
+    parseFloat await text page, await row.$ 'td:nth-child(7)'
 
   pb: (page, row) ->
-    parseFloat await text page, await row.$ 'td:nth-child(9)'
+    parseFloat await text page, await row.$ 'td:nth-child(8)'
 
   yield: (page, row) ->
-    parseFloat await text page, await row.$ 'td:nth-child(10)'
+    parseFloat await text page, await row.$ 'td:nth-child(9)'
 
   marketCap: (page, row) ->
-    await text page, await row.$ 'td:nth-child(11)'
+    await text page, await row.$ 'td:nth-child(10)'
 
   stock: (page, row) ->
     ret = {}
@@ -130,7 +130,7 @@ class Peers
     return ret
 
   rows: (page) ->
-    await page.$$ 'table#tbTS tbody tr'
+    await page.$$ 'table#tblTS2 tbody tr'
 
   length: (page) ->
     (await @rows page).length
@@ -160,14 +160,19 @@ class Peers
     ret
 
   get: ->
-    ret = []
+    ret = {}
     urlList = @url()
-    page = await newPage @browser, urlList[0]
     for sector in urlList
-      await page.goto sector, waitUntil: 'networkidle2'
-      await @pgDn page
-      for row in await @rows page
-        ret = ret.concat _.extend sector: sector, await @stock page, row
+      ret[sector] = await @constituent sector
+    ret
+
+  constituent: (url) ->
+    ret = []
+    page = await newPage @browser, url
+    await page.goto url, waitUntil: 'networkidle2'
+    await @pgDn page
+    for row in await @rows page
+      ret.push await @stock page, row
     page.close()
     ret
   
